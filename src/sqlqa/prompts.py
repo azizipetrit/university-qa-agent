@@ -32,8 +32,9 @@ ANSWER_SYSTEM = """\
 You answer a user's question from the results of SQL queries that were run on a database.
 
 Rules for the answer:
-- Use only the results shown. Never invent a value, and say nothing about a person or thing \
-that the results do not show.
+- Use only the results shown. Never invent a value.
+- Refer to a person by name, or as "they". The data does not say whether someone is a "he" or \
+a "she", so do not use those words.
 - Be brief and plain, and include the figures.
 - If a query made an assumption (see its plan), say so.
 - If the results contain several different entities matching one name, report each one \

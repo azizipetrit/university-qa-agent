@@ -1,7 +1,10 @@
 # Design
 
-This document grows with each phase. So far: the university database, the database layer, the SQL
-guard, the agent graph and tracing.
+Why the system is built the way it is. Each section names a decision, the alternative, and the
+cost. Small choices that were not worth a discussion are listed under Assumptions at the end.
+
+Related: [EXAMPLES.md](EXAMPLES.md) for runs and traces, [PRODUCTION.md](PRODUCTION.md) for what a
+production version needs.
 
 ## Database
 
@@ -40,7 +43,7 @@ one test fails if a university table name ever appears in `src/`.
 
 Introspection tells the model what the columns are, not what they mean. It cannot know that a NULL
 grade means "in progress". That knowledge goes in an optional plain-text notes file
-(`university/notes.md`, six lines) that is appended to the schema text. Moving to another database
+(`university/notes.md`, seven lines) that is appended to the schema text. Moving to another database
 means pointing at another URL and, optionally, another notes file. No code changes.
 
 ### Row limit
@@ -69,7 +72,7 @@ model the same way. Checking columns through aliases and subqueries would need m
 ## Read-only: three layers
 
 | Layer | Where | Portable? |
-|---|---|---|
+| --- | --- | --- |
 | SQL guard | `sql_guard.py` | Yes, any dialect sqlglot knows |
 | Never commit: every query runs in a transaction that is rolled back | `db.py` | Yes |
 | The connection itself refuses writes | `db.py` (`PRAGMA query_only = ON`) | SQLite only |
@@ -118,7 +121,7 @@ load_schema -> generate_sql -> validate_sql -> execute_sql -> answer -> END
 ```
 
 | Node | Model? | What it does |
-|---|---|---|
+| --- | --- | --- |
 | `load_schema` | no | Reads the schema from the live database. |
 | `generate_sql` | yes | Returns SQL with a short plan, or a clarifying question, or "cannot answer". |
 | `validate_sql` | no | Runs the SQL guard. |
@@ -133,7 +136,7 @@ control flow readable in one file and testable without a model.
 ### Three loops, three limits
 
 | What sends the run back to `generate_sql` | Limit | Default |
-|---|---|---|
+| --- | --- | --- |
 | The guard or the database rejects the SQL. The error text goes back to the model. | Attempts per query | 3 |
 | `answer` asks for another query, with a reason. | Queries per question | 3 |
 | Either of the above. | Model calls per run | 10 |
@@ -209,6 +212,38 @@ placeholder so the steps stay short.
 LangSmith needs no code. Setting `LANGSMITH_TRACING=true` and a key sends the same run there as
 well, because LangGraph and langchain report to it on their own.
 
+## Testing and evaluation
+
+Two kinds of test answer two different questions.
+
+- **Does the code do what it should?** 126 offline tests. The model is replaced by a scripted
+  stand-in (`tests/fakes.py`) that returns prepared replies in order and records every prompt. The
+  database, the guard, the graph and the tracer are all real. These tests are exact and free, and
+  they cannot say anything about the quality of a real model's SQL.
+- **Does the real model answer correctly?** 14 golden questions in
+  `university/golden_questions.json`, run with `uv run pytest -m live`. Each lists the values a
+  correct run must have fetched (for example `73.75`), and the expected status. Whole result sets
+  are not compared, because a correct query that selects one extra column would fail.
+
+The live evaluation is not run by default, because it needs a key and costs money. Its first full
+run passed 13 of 14 and exposed a real misreading, which is written up in
+[EXAMPLES.md](EXAMPLES.md#debugging-a-wrong-answer). After the fix it passed 14 of 14.
+
+## Known limitations
+
+- **Only SQLite has been run.** Other databases are supported by design and untested.
+- **No query timeout.**
+- **The whole schema goes into every prompt.** Fine for six tables, not for six hundred.
+- **The guard checks tables, not columns or functions.** A wrong column costs one repair attempt.
+- **The answer is not verified against the rows.** The answer prompt forbids invented values, and
+  the trace lets a person check, but no code does.
+- **No conversation memory.** Each question stands alone.
+- **The live evaluation is small** and tied to the demo database. It shows the method more than it
+  measures quality.
+- **Model output varies.** No temperature is set, so the same question can produce different SQL
+  on different runs. The golden questions passed on the runs recorded here; that is not a
+  guarantee for every run.
+
 ## Assumptions
 
 Small choices made without discussion, simplest option taken.
@@ -251,3 +286,12 @@ Small choices made without discussion, simplest option taken.
   2 when a required setting is missing.
 - LangGraph's own step limit is set to 60, above the worst case the three limits allow.
 - The Markdown view shows the first 10 rows of each result; the JSON has all of them.
+- Live tests are excluded by default through pytest's `addopts`, and selected with `-m live`.
+- A golden question passes when each expected value appears in some row of some query the run
+  executed. Numbers match within 0.01; text matches case-insensitively as a substring.
+- Live test traces go to `traces/live/`.
+- The committed example traces were copied from real runs and renamed. The scripted one is
+  labelled in its header.
+- The answer prompt tells the model to refer to people by name or as "they", because an early run
+  wrote "she" for a teacher and the data holds no such information.
+- The README diagram is the unedited output of `draw_mermaid()`.

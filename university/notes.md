@@ -4,3 +4,4 @@
 - A student can take the same course more than once, in different semesters.
 - Student names are not unique. The email identifies a student.
 - To order semesters in time, use start_date, not name.
+- The latest semester is the one with the latest start_date, whether or not it has grades yet.

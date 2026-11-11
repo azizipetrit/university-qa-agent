@@ -45,12 +45,12 @@ questions over a SQL database. The owner must present and defend every line, so
 
 ## Graph
 
-```
+```text
 START → load_schema → generate_sql → validate_sql → execute_sql → answer → END
 ```
 
 | Node | LLM | Responsibility |
-|---|---|---|
+| --- | --- | --- |
 | `load_schema` | no | Introspect tables, columns, types, PKs, FKs; up to 3 sample rows per table (flag). |
 | `generate_sql` | yes | Structured output: `status` (`sql` / `clarify` / `unanswerable`), `plan`, `sql` or question. |
 | `validate_sql` | no | sqlglot guard (see constraint 2). |
@@ -79,7 +79,7 @@ Routing:
 
 ## Layout
 
-```
+```text
 src/sqlqa/            generic agent, no university knowledge
   config.py           env settings
   db.py               engine, read-only setup, introspection, execute
@@ -91,9 +91,10 @@ src/sqlqa/            generic agent, no university knowledge
   graph.py            build_graph(llm, db, tracer, settings), routers, run(question, ...)
   tracing.py          JSON tracer, Markdown renderer
   cli.py              ask, render-trace
-university/           schema.sql, seed.sql, notes.md, build_db.py
+university/           schema.sql, seed.sql, notes.md, golden_questions.json, build_db.py
 tests/                fakes.py holds the scripted FakeLLM and the ask() helper
 docs/                 DESIGN.md, PRODUCTION.md, EXAMPLES.md, traces/
+README.md             quick start, diagram, requirement map, AI usage
 ```
 
 Dependencies (LLM, engine, tracer, settings) are passed into `build_graph`; nodes never read globals
@@ -137,6 +138,9 @@ Build with `uv run python -m university.build_db`.
 - `test_agent`: happy path, repair, blocked write, clarify, empty and NULL results, attempts
   exhausted, multi-query, query cap, LLM-call cap, crash.
 - `test_tracing`: JSON contents, Markdown view, `render-trace`, settings.
+- `test_live` (marker `live`, excluded by default; run with `uv run pytest -m live`): the golden
+  questions in `university/golden_questions.json` against the real model. Run it after any change
+  to prompts, notes or the model. A new wrong answer becomes a new golden question.
 - Agnosticism: the same graph runs against an unrelated toy schema; `src/` is grepped for university
   table names.
 
@@ -145,7 +149,11 @@ Build with `uv run python -m university.build_db`.
 - `DESIGN.md`: decisions and trade-offs, an "Assumptions" section, upgrade paths.
 - `PRODUCTION.md`: reliability, scalability, monitoring, security, deployment; includes the privacy
   implication of sending sample rows to the LLM provider.
-- `EXAMPLES.md` and `docs/traces/`: example questions, outputs, and committed traces.
+- `EXAMPLES.md` and `docs/traces/`: example questions, outputs, committed traces (JSON and
+  Markdown), and the debugging walkthrough. A scripted trace must say so in its header.
+- `README.md`: keep the requirement map and the test counts in step with the code.
+- Schema meaning goes in `university/notes.md`, never in `src/` or the prompts. Keep it short and
+  factual.
 
 ## Phases
 
@@ -153,3 +161,6 @@ Build with `uv run python -m university.build_db`.
 2. `db.py` introspection/execution and `sql_guard.py`, with tests.
 3. Agent and tracing together: state, prompts, nodes, graph, tracer, CLI, fake LLM, tests.
 4. Docs, example runs, committed traces, live evaluation set.
+
+All four phases are done. Later changes follow the same rules: questions first, tests shown before
+committing, one branch and one PR per change.
