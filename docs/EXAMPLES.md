@@ -15,11 +15,11 @@
 | 7 | Rejected SQL is repaired (scripted model) | `scripted (no real model; see tests/test_agent.py)` | 3 | 1 | [07](traces/07-repair-scripted.md) |
 | 8 | A wrong answer, before it was fixed | `anthropic:claude-opus-5-5` | 2 | 1 | [08](traces/08-debug-before-fix.md) |
 | 9 | The same question after the fix | `anthropic:claude-opus-5-5` | 2 | 1 | [09](traces/09-debug-after-fix.md) |
-| 11 | A value that does not exist: the filter check says what does | `anthropic:claude-haiku-5-5` | 2 | 1 | [11](traces/11-missing-value.md) |
-| 12 | A value written in the wrong case: the filter check finds the real one | `anthropic:claude-haiku-5-5` | 4 | 2 | [12](traces/12-wrong-case.md) |
-| 13 | A figure that was not in the results: the answer check adds a note | `anthropic:claude-haiku-5-5` | 2 | 1 | [13](traces/13-unverified-figure.md) |
-| 14 | A top-N ranking | `anthropic:claude-haiku-5-5` | 2 | 1 | [14](traces/14-ranking.md) |
-| 15 | The local trace of a run that is also public in LangSmith | `anthropic:claude-haiku-5-5` | 4 | 2 | [15](traces/15-same-run-as-langsmith.md) |
+| 10 | A value that does not exist: the filter check says what does | `anthropic:claude-haiku-5-5` | 2 | 1 | [10](traces/10-missing-value.md) |
+| 11 | A value written in the wrong case: the filter check finds the real one | `anthropic:claude-haiku-5-5` | 4 | 2 | [11](traces/11-wrong-case.md) |
+| 12 | A figure that was not in the results: the answer check adds a note | `anthropic:claude-haiku-5-5` | 2 | 1 | [12](traces/12-unverified-figure.md) |
+| 13 | A top-N ranking | `anthropic:claude-haiku-5-5` | 2 | 1 | [13](traces/13-ranking.md) |
+| 14 | The local trace of a run that is also public in LangSmith | `anthropic:claude-haiku-5-5` | 4 | 2 | [14](traces/14-same-run-as-langsmith.md) |
 
 SQL below is laid out for reading. Each trace has it exactly as the model wrote it.
 
@@ -234,7 +234,55 @@ The real model rarely writes SQL that fails on this small schema, so this trace 
 
 Trace: [07-repair-scripted.md](traces/07-repair-scripted.md), model `scripted (no real model; see tests/test_agent.py)`.
 
-## 11. A value that does not exist: the filter check says what does
+## Debugging a wrong answer
+
+This is a real case from building the project, not a staged one. Both traces in this section are from `anthropic:claude-opus-5-5`, the model in use when it happened.
+
+**The symptom.** The first full run of the live evaluation (`uv run pytest -m live`) failed on one question out of 14:
+
+**Question:** What is the average grade in the latest semester?
+
+> The average grade in Spring 2026 is 79.0, based on 10 graded enrollments. This assumes "latest semester" means the most recent semester (by start date) that has any graded enrollments. Later semesters, such as Fall 2026, have no grades yet: enrollments without a grade are still in progress, so they give no average. Ungraded enrollments were left out.
+
+The latest semester is Fall 2026, which has no grades yet. The expected result was a NULL average. The agent answered for a different semester.
+
+**Reading the trace** ([08-debug-before-fix](traces/08-debug-before-fix.md)), step by step:
+
+| Step | What the trace shows | Verdict |
+| --- | --- | --- |
+| `load_schema` | The schema and notes are complete. The notes say to order semesters by `start_date`. | Fine |
+| `generate_sql` | The plan says: "Average the non-NULL grades across all offerings in the latest semester by start_date, counting only semesters that have at least one graded enrollment, since ungraded (in-progress) semesters would give no average. The query also returns the semester's name and the number of graded enrollments." | The fault is here |
+| `validate_sql` | `error: null`. It is a valid SELECT. | Fine |
+| `execute_sql` | One row: `[2, 'Spring 2026', 79.0, 10]`. The database did what it was asked. | Fine |
+| `answer` | Reports that row and states the assumption. | Faithful to the result |
+
+So the SQL was valid, the database was right, and the answer matched the rows. The problem was an interpretation: the model decided that a semester without grades did not count as "latest". The plan recorded in the trace says so in the model's own words, which is why `generate_sql` returns a plan and not only SQL.
+
+**The fix.** This is a fact about the data, so it belongs in the schema notes, not in the agent code. One line was added to `university/notes.md`:
+
+```text
+- The latest semester is the one with the latest start_date, whether or not it has grades yet.
+```
+
+**Checking the fix.** With that line, the same model returned `[3, 'Fall 2026', None, 0]` and answered ([09-debug-after-fix](traces/09-debug-after-fix.md)):
+
+> The latest semester, by start date, is Fall 2026. Its average grade is not available yet, because it has 0 graded enrollments. Per the schema notes, a NULL grade means the enrollment is still in progress and has not been graded, so there is no average to report (it is not zero).
+
+The question is one of the golden questions, so a regression would be caught.
+
+**Does it reproduce on the current default model?** No. With the fix line removed from the notes, `anthropic:claude-haiku-5-5` selected the true latest semester and returned NULL in three of three runs. That is why this walkthrough keeps the original traces. The line stays in the notes: it states a fact the data cannot express, and it costs one sentence. The current model's run of the same question is example 4 ([04-null-result-latest-semester](traces/04-null-result-latest-semester.md)).
+
+### Where to look, by symptom
+
+| Symptom | Look at | Likely cause |
+| --- | --- | --- |
+| Wrong number, valid SQL | The `plan` in the `generate_sql` reply | The question was read differently than intended |
+| Wrong table or join | The schema block at the top of the trace | Missing foreign key, or a missing note |
+| 0 rows or only NULLs | The filter check under the result in the `check_filters` step | A value that is not in the column, or is written differently |
+| Run ended in `give_up` | The `error` in each `validate_sql` and `execute_sql` step | The model could not repair the SQL in 3 attempts |
+| Answer disagrees with the rows | The result table in `execute_sql` against the `answer` reply | The answer step misread the result |
+| Slow or expensive run | Token counts and durations per model call | A large schema or a long loop |
+## 10. A value that does not exist: the filter check says what does
 
 **Question:** What is the average grade in BIO101?
 
@@ -270,9 +318,9 @@ Filter check (the database was asked whether each filter value exists):
 
 No course has this code. An average over no matching rows is one row holding NULL, which on its own looks like a course that is not graded yet. `check_filters` asked the database and found that the code does not exist, and listed the six that do. The answer reports that as a fact, with no second query and no extra model call. In one run out of four made for this example, the answer step asked for another query instead, and `generate_sql` then ended the run as unanswerable with the same explanation.
 
-Trace: [11-missing-value.md](traces/11-missing-value.md), model `anthropic:claude-haiku-5-5`.
+Trace: [10-missing-value.md](traces/10-missing-value.md), model `anthropic:claude-haiku-5-5`.
 
-## 12. A value written in the wrong case: the filter check finds the real one
+## 11. A value written in the wrong case: the filter check finds the real one
 
 **Question:** What is the average grade for the course with code 'Math201'?
 
@@ -333,9 +381,9 @@ Returned 1 row(s).
 
 The code exists, written differently. SQLite compares text with `=` case-sensitively, so the first query matched nothing. `check_filters` found the real spelling, the `answer` node asked for a second query with it, and that query returned the average. This is a real two-query run on default settings, and it reproduces: the check fired and a second query ran in every run made of this question. The value is not among the three sample rows the model was shown for this table.
 
-Trace: [12-wrong-case.md](traces/12-wrong-case.md), model `anthropic:claude-haiku-5-5`.
+Trace: [11-wrong-case.md](traces/11-wrong-case.md), model `anthropic:claude-haiku-5-5`.
 
-## 13. A figure that was not in the results: the answer check adds a note
+## 12. A figure that was not in the results: the answer check adds a note
 
 **Question:** What is the average grade in the latest semester?
 
@@ -372,9 +420,9 @@ Returned 1 row(s).
 
 The same question as example 4, from a run of the live evaluation. The query returned the semester's name and a NULL average. The answer also gives a start date, which the query did not return: the model took it from the sample rows shown with the schema. The date happens to be right, but nothing the run fetched supports it. `verify_answer` found it in none of its sources and appended the note. It did not call the model again. The model does not always add the date, so re-running this example may produce an answer with no note, as in example 4.
 
-Trace: [13-unverified-figure.md](traces/13-unverified-figure.md), model `anthropic:claude-haiku-5-5`.
+Trace: [12-unverified-figure.md](traces/12-unverified-figure.md), model `anthropic:claude-haiku-5-5`.
 
-## 14. A top-N ranking
+## 13. A top-N ranking
 
 **Question:** Who are the top 3 students by average grade? Give their rank and average.
 
@@ -411,9 +459,9 @@ Returned 3 row(s).
 
 A ranking over an aggregate: average per student, ordered, top three. The expected order is checked by hand against the seed data: the second Daniel Kim (91.33), Anna Keller (84.5), Eva Novak (83.5). The two students named Daniel Kim are told apart by email, and the top one is the one with the higher average.
 
-Trace: [14-ranking.md](traces/14-ranking.md), model `anthropic:claude-haiku-5-5`.
+Trace: [13-ranking.md](traces/13-ranking.md), model `anthropic:claude-haiku-5-5`.
 
-## 15. The local trace of a run that is also public in LangSmith
+## 14. The local trace of a run that is also public in LangSmith
 
 **Question:** What is the average grade for the course with code 'Math201'?
 
@@ -476,53 +524,4 @@ Returned 1 row(s).
 
 This run was made with LangSmith tracing switched on, so the same run exists in two places: this local trace, and [a public LangSmith trace](https://smith.langchain.com/public/285d2736-f428-443d-ace4-156765e016b9/r/01a1cce5-2eca-7029-87c5-33f5ce8b2727). Nothing in the code differs between the two; LangSmith is switched on with environment variables. The README shows them side by side. This trace is kept as recorded and is not re-run, because the LangSmith link belongs to this one run.
 
-Trace: [15-same-run-as-langsmith.md](traces/15-same-run-as-langsmith.md), model `anthropic:claude-haiku-5-5`.
-
-## Debugging a wrong answer
-
-This is a real case from building the project, not a staged one. Both traces in this section are from `anthropic:claude-opus-5-5`, the model in use when it happened.
-
-**The symptom.** The first full run of the live evaluation (`uv run pytest -m live`) failed on one question out of 14:
-
-**Question:** What is the average grade in the latest semester?
-
-> The average grade in Spring 2026 is 79.0, based on 10 graded enrollments. This assumes "latest semester" means the most recent semester (by start date) that has any graded enrollments. Later semesters, such as Fall 2026, have no grades yet: enrollments without a grade are still in progress, so they give no average. Ungraded enrollments were left out.
-
-The latest semester is Fall 2026, which has no grades yet. The expected result was a NULL average. The agent answered for a different semester.
-
-**Reading the trace** ([08-debug-before-fix](traces/08-debug-before-fix.md)), step by step:
-
-| Step | What the trace shows | Verdict |
-| --- | --- | --- |
-| `load_schema` | The schema and notes are complete. The notes say to order semesters by `start_date`. | Fine |
-| `generate_sql` | The plan says: "Average the non-NULL grades across all offerings in the latest semester by start_date, counting only semesters that have at least one graded enrollment, since ungraded (in-progress) semesters would give no average. The query also returns the semester's name and the number of graded enrollments." | The fault is here |
-| `validate_sql` | `error: null`. It is a valid SELECT. | Fine |
-| `execute_sql` | One row: `[2, 'Spring 2026', 79.0, 10]`. The database did what it was asked. | Fine |
-| `answer` | Reports that row and states the assumption. | Faithful to the result |
-
-So the SQL was valid, the database was right, and the answer matched the rows. The problem was an interpretation: the model decided that a semester without grades did not count as "latest". The plan recorded in the trace says so in the model's own words, which is why `generate_sql` returns a plan and not only SQL.
-
-**The fix.** This is a fact about the data, so it belongs in the schema notes, not in the agent code. One line was added to `university/notes.md`:
-
-```text
-- The latest semester is the one with the latest start_date, whether or not it has grades yet.
-```
-
-**Checking the fix.** With that line, the same model returned `[3, 'Fall 2026', None, 0]` and answered ([09-debug-after-fix](traces/09-debug-after-fix.md)):
-
-> The latest semester, by start date, is Fall 2026. Its average grade is not available yet, because it has 0 graded enrollments. Per the schema notes, a NULL grade means the enrollment is still in progress and has not been graded, so there is no average to report (it is not zero).
-
-The question is one of the golden questions, so a regression would be caught.
-
-**Does it reproduce on the current default model?** No. With the fix line removed from the notes, `anthropic:claude-haiku-5-5` selected the true latest semester and returned NULL in three of three runs. That is why this walkthrough keeps the original traces. The line stays in the notes: it states a fact the data cannot express, and it costs one sentence. The current model's run of the same question is example 4 ([04-null-result-latest-semester](traces/04-null-result-latest-semester.md)).
-
-### Where to look, by symptom
-
-| Symptom | Look at | Likely cause |
-| --- | --- | --- |
-| Wrong number, valid SQL | The `plan` in the `generate_sql` reply | The question was read differently than intended |
-| Wrong table or join | The schema block at the top of the trace | Missing foreign key, or a missing note |
-| 0 rows or only NULLs | The filter check under the result in the `check_filters` step | A value that is not in the column, or is written differently |
-| Run ended in `give_up` | The `error` in each `validate_sql` and `execute_sql` step | The model could not repair the SQL in 3 attempts |
-| Answer disagrees with the rows | The result table in `execute_sql` against the `answer` reply | The answer step misread the result |
-| Slow or expensive run | Token counts and durations per model call | A large schema or a long loop |
+Trace: [14-same-run-as-langsmith.md](traces/14-same-run-as-langsmith.md), model `anthropic:claude-haiku-5-5`.

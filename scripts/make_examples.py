@@ -94,7 +94,7 @@ EXAMPLES = [
 
 EXAMPLES.append(
     (
-        "11-missing-value",
+        "10-missing-value",
         "A value that does not exist: the filter check says what does",
         "What is the average grade in BIO101?",
         {},
@@ -103,7 +103,7 @@ EXAMPLES.append(
 )
 EXAMPLES.append(
     (
-        "12-wrong-case",
+        "11-wrong-case",
         "A value written in the wrong case: the filter check finds the real one",
         "What is the average grade for the course with code 'Math201'?",
         {},
@@ -113,7 +113,7 @@ EXAMPLES.append(
 
 EXAMPLES.append(
     (
-        "13-unverified-figure",
+        "12-unverified-figure",
         "A figure that was not in the results: the answer check adds a note",
         "What is the average grade in the latest semester?",
         {},
@@ -123,7 +123,7 @@ EXAMPLES.append(
 
 EXAMPLES.append(
     (
-        "14-ranking",
+        "13-ranking",
         "A top-N ranking",
         "Who are the top 3 students by average grade? Give their rank and average.",
         {},
@@ -132,7 +132,7 @@ EXAMPLES.append(
 )
 
 REPAIR = "07-repair-scripted"
-LANGSMITH = "15-same-run-as-langsmith"  # a fixed trace: the same run is public in LangSmith
+LANGSMITH = "14-same-run-as-langsmith"  # a fixed trace: the same run is public in LangSmith
 LANGSMITH_URL = (
     "https://smith.langchain.com/public/285d2736-f428-443d-ace4-156765e016b9/r/"
     "01a1cce5-2eca-7029-87c5-33f5ce8b2727"
@@ -310,6 +310,7 @@ def write_examples():
         "query because it checks tables, not columns. The database rejected it, the error went "
         "back to `generate_sql`, and the second query ran.",
     )
+    out += debugging_section()  # examples 8 and 9, in their numbered place
     for name, title, _question, _overrides, note in EXAMPLES:
         if name > REPAIR:  # examples added after the debugging traces were numbered
             out += example_section(name, title, NOTES.get(name, note))
@@ -322,7 +323,6 @@ def write_examples():
         "The README shows them side by side. This trace is kept as recorded and is not re-run, "
         "because the LangSmith link belongs to this one run.",
     )
-    out += debugging_section()
     (ROOT / "docs" / "EXAMPLES.md").write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
     print("wrote docs/EXAMPLES.md and", len(names), "trace views")
 
@@ -418,7 +418,7 @@ NOTES: dict[str, str] = {
         "such as 'Who is the best?', may instead be answered with a stated assumption, which "
         "the prompt allows."
     ),
-    "13-unverified-figure": (
+    "12-unverified-figure": (
         "The same question as example 4, from a run of the live evaluation. The query returned "
         "the semester's name and a NULL average. The answer also gives a start date, which the "
         "query did not return: the model took it from the sample rows shown with the schema. "
@@ -427,13 +427,13 @@ NOTES: dict[str, str] = {
         "call the model again. The model does not always add the date, so re-running this "
         "example may produce an answer with no note, as in example 4."
     ),
-    "14-ranking": (
+    "13-ranking": (
         "A ranking over an aggregate: average per student, ordered, top three. The expected "
         "order is checked by hand against the seed data: the second Daniel Kim (91.33), Anna "
         "Keller (84.5), Eva Novak (83.5). The two students named Daniel Kim are told apart by "
         "email, and the top one is the one with the higher average."
     ),
-    "11-missing-value": (
+    "10-missing-value": (
         "No course has this code. An average over no matching rows is one row holding NULL, "
         "which on its own looks like a course that is not graded yet. `check_filters` asked the "
         "database and found that the code does not exist, and listed the six that do. The "
@@ -442,7 +442,7 @@ NOTES: dict[str, str] = {
         "query instead, and `generate_sql` then ended the run as unanswerable with the same "
         "explanation."
     ),
-    "12-wrong-case": (
+    "11-wrong-case": (
         "The code exists, written differently. SQLite compares text with `=` case-sensitively, "
         "so the first query matched nothing. `check_filters` found the real spelling, the "
         "`answer` node asked for a second query with it, and that query returned the average. "
