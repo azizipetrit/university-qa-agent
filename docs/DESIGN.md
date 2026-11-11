@@ -168,7 +168,7 @@ example or a golden question.
 
 The dependable case is a corrected filter. When a query returns nothing and the filter check
 shows that the value exists in another form, `answer` asks for a second query with the real
-value. Example 12 in [EXAMPLES.md](EXAMPLES.md) is such a run on default settings, and it is a
+value. Example 11 in [EXAMPLES.md](EXAMPLES.md) is such a run on default settings, and it is a
 golden question.
 
 ### Empty results: evidence, not a guess (`src/sqlqa/filter_check.py`)
@@ -288,7 +288,7 @@ the re-run examples and a full live evaluation, 21 runs ended in an answer:
 | 21 | 1 | 1 |
 
 The one note was the start date again, in the live evaluation's run of the latest-semester
-question. It is committed as example 13 in [EXAMPLES.md](EXAMPLES.md). No correct answer got a
+question. It is committed as example 12 in [EXAMPLES.md](EXAMPLES.md). No correct answer got a
 note in these runs. That is a small sample, and a computed figure in an otherwise correct answer
 will get one.
 
@@ -343,7 +343,7 @@ placeholder so the steps stay short.
 
 LangSmith needs no code. Setting `LANGSMITH_TRACING=true` and a key sends the same run there as
 well, because LangGraph and langchain report to it on their own. One run was traced both ways at
-once; the README links its public LangSmith trace next to its local trace (example 15).
+once; the README links its public LangSmith trace next to its local trace (example 14).
 
 The local tracer is the default because it needs no account and no network, and because a trace
 that is a file can be committed next to the code as evidence.
@@ -352,7 +352,7 @@ that is a file can be committed next to the code as evidence.
 
 Two kinds of test answer two different questions.
 
-- **Does the code do what it should?** 234 offline tests. The model is replaced by a scripted
+- **Does the code do what it should?** 243 offline tests. The model is replaced by a scripted
   stand-in (`tests/fakes.py`) that returns prepared replies in order and records every prompt. The
   database, the guard, the graph and the tracer are all real. These tests are exact and free, and
   they cannot say anything about the quality of a real model's SQL.
@@ -502,12 +502,23 @@ Small choices made without discussion, simplest option taken.
 - The SQL text is not a source for the answer check. A number that appears only in the query, and
   not in the question or the results, is reported.
 - A figure followed by `%` matches a result value equal to it or to a hundredth of it.
-- Example 13 was copied from a live evaluation run, because the model does not add the unsupported
+- Example 12 was copied from a live evaluation run, because the model does not add the unsupported
   date every time.
 - `sqlqa chat` is a loop around the same single-question run. It keeps no history, so each
   question gets its own run and its own trace file, and a question that crashes does not end the
   session.
 - `sqlqa schema` needs only `DATABASE_URL`. It prints the same text `load_schema` puts in the
   prompt, including sample rows and notes as configured.
-- Example 15 is the local trace of the run that is also public in LangSmith. It is kept as
+- Example 14 is the local trace of the run that is also public in LangSmith. It is kept as
   recorded and never re-run.
+- Examples are numbered 1 to 14 with no gaps. Numbers 7 to 9 are the scripted repair trace and the
+  two historical debugging traces; later examples were renumbered once, after one was removed.
+- The command line exits with 0 for a finished run, 1 when the run finished as `failed`, 2 when a
+  required setting is missing, and 3 when the run crashed, for example because the model could
+  not be reached. A crash prints one line with the likely cause and the trace path, not a
+  traceback.
+- The likely cause of a failed model call is worked out from the convention that a provider's key
+  is in `<PROVIDER>_API_KEY`. If that variable is empty the message says so; otherwise it says the
+  key may be wrong or the provider unreachable. It is a hint, not a diagnosis.
+- `.env.example` leaves LangSmith commented out, so copying it to `.env` sends nothing to
+  LangSmith. A test fails if an active LangSmith line is added to it.

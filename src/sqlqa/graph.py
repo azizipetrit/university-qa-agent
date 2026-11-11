@@ -27,6 +27,8 @@ from sqlqa.tracing import Tracer
 # far earlier; this only needs to be higher than the worst case they allow.
 RECURSION_LIMIT = 60
 
+TRACE_NOTE = "Trace: "  # prefix of the note attached to an exception that ended a run
+
 
 def build_graph(llm, db: Database, tracer: Tracer, settings: Settings):
     nodes = Nodes(llm, db, tracer, settings)
@@ -106,6 +108,7 @@ def run(question: str, llm, db: Database, settings: Settings) -> tuple[State, Pa
     try:
         state = graph.invoke(initial_state(question), {"recursion_limit": RECURSION_LIMIT})
     except Exception as exc:
-        tracer.finish(error=repr(exc))  # a crashed run still leaves a trace
+        trace_path = tracer.finish(error=repr(exc))  # a crashed run still leaves a trace
+        exc.add_note(f"{TRACE_NOTE}{trace_path}")  # so the caller can say where it is
         raise
     return state, tracer.finish(state)

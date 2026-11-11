@@ -18,7 +18,10 @@ questions over a SQL database. The owner must present and defend every line, so
 - **Authorship:** commits are under the owner's name only (no `Co-Authored-By` line) and PR
   descriptions carry no "Generated with" footer.
 - **`.env.example` stays current:** any change to a setting (new, renamed, new default) updates
-  `.env.example` and the Configuration section below in the same commit.
+  `.env.example` and the Configuration section below in the same commit. It must work when copied
+  as is: no placeholder values, and LangSmith commented out. `tests/test_cli.py` checks both.
+- **Fresh-clone check:** before a PR that touches setup, the README or `.env.example`, follow the
+  README quick start in a clean copy of the repo.
 - **CI:** `.github/workflows/ci.yml` runs `ruff check`, `ruff format --check` and the offline tests
   on every PR and on `main`. It must stay green and must never need an API key.
 - No abstraction without a second use. No dependency that isn't listed below without asking.
@@ -138,7 +141,9 @@ Read once in `config.py`; `.env.example` documents every one.
 ## Command line
 
 - `sqlqa ask "<question>"`: one run. Prints the answer, each query, the status and the trace path.
-  Exit code 1 if the run failed, 2 if a required setting is missing.
+  Exit code 1 if the run failed, 2 if a required setting is missing, 3 if the run crashed (for
+  example the model could not be reached). A crash prints one line naming the likely cause and
+  the trace path, never a traceback.
 - `sqlqa chat`: a loop around `ask`. Every question is an independent run with its own trace; no
   history is kept, and the opening message says so. Do not add memory here without asking: the
   agent is stateless by design (see the interrupt and checkpointer upgrade path in `DESIGN.md`).
@@ -199,7 +204,7 @@ Build with `uv run python -m university.build_db`.
   examples, and add the score to the table in `DESIGN.md`. Traces `08` and `09` are the original
   Opus runs behind the debugging walkthrough and are kept unless the failure reproduces.
 - `README.md`: keep the requirement map and the test counts in step with the code.
-- `docs/langsmith-run.png` and trace `15-same-run-as-langsmith` belong to one real run whose
+- `docs/langsmith-run.png` and trace `14-same-run-as-langsmith` belong to one real run whose
   LangSmith trace is public. Keep the trace as recorded; the README shows the three together.
 - Schema meaning goes in `university/notes.md`, never in `src/` or the prompts. Keep it short and
   factual.

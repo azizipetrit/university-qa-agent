@@ -8,6 +8,7 @@ uv run sqlqa render-trace traces/<run>.json        # a trace file as Markdown
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -15,9 +16,11 @@ from dotenv import find_dotenv, load_dotenv
 
 from sqlqa.config import Settings
 from sqlqa.db import Database
-from sqlqa.graph import run
+from sqlqa.graph import TRACE_NOTE, run
 from sqlqa.llm import create_llm
 from sqlqa.tracing import render_markdown
+
+CRASHED = 3  # exit code when a run could not finish; 1 = finished as failed, 2 = bad settings
 
 CHAT_INTRO = (
     "Ask a question about the database. Each question is answered on its own: "
@@ -59,7 +62,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "schema":
         print(db.describe_schema())
         return 0
-    llm = create_llm(settings.llm_model)
+    try:
+        llm = create_llm(settings.llm_model)
+    except Exception as exc:  # unknown provider, missing provider package, rejected key
+        print(_explain(exc, settings), file=sys.stderr)
+        return CRASHED
     if args.command == "chat":
         return _chat(llm, db, settings)
     return _answer(args.question, llm, db, settings)
@@ -67,7 +74,11 @@ def main(argv: list[str] | None = None) -> int:
 
 def _answer(question: str, llm, db: Database, settings: Settings) -> int:
     """Run one question and print the answer, the SQL, the status and the trace path."""
-    state, trace_path = run(question, llm, db, settings)
+    try:
+        state, trace_path = run(question, llm, db, settings)
+    except Exception as exc:  # the run crashed; say why in one line, not in a traceback
+        print(_explain(exc, settings), file=sys.stderr)
+        return CRASHED
     print(state["answer"])
     print()
     for number, query in enumerate(state["queries"], start=1):
@@ -90,12 +101,26 @@ def _chat(llm, db: Database, settings: Settings) -> int:
             return 0
         if not question:
             continue
-        try:
-            _answer(question, llm, db, settings)
-        except Exception as exc:  # one failed question should not end the session
-            print(
-                f"That question failed: {exc}. Its trace was still written to {settings.trace_dir}."
-            )
+        _answer(question, llm, db, settings)  # a crash prints one line; the loop goes on
+
+
+def _explain(exc: Exception, settings: Settings) -> str:
+    """One line for a run that crashed: what failed, the likely cause, where the trace is."""
+    error = f"{type(exc).__name__}: {exc}".strip().splitlines()[0]
+    if type(exc).__module__.startswith("sqlalchemy"):
+        message = f"The database could not be read ({error}). Likely cause: DATABASE_URL is wrong."
+    else:
+        # By convention a provider's key is in <PROVIDER>_API_KEY.
+        key = f"{settings.llm_model.split(':')[0].upper()}_API_KEY"
+        if os.environ.get(key):
+            cause = f"the key in {key} is wrong or expired, or the provider cannot be reached"
+        else:
+            cause = f"{key} is not set. Put your key in .env"
+        message = f"The model call failed ({error}). Likely cause: {cause}."
+    trace = next(
+        (note for note in getattr(exc, "__notes__", []) if note.startswith(TRACE_NOTE)), None
+    )
+    return f"{message} {trace}" if trace else message
 
 
 def _render(trace_file: Path, output: Path | None) -> int:
