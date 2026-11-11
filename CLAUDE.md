@@ -91,7 +91,7 @@ or env vars.
 ## Configuration (env)
 
 `DATABASE_URL`, `LLM_MODEL`, `MAX_ROWS`, `MAX_ATTEMPTS` (3), `MAX_QUERIES` (3), `MAX_LLM_CALLS`,
-`SAMPLE_ROWS` (3; 0 disables), `TRACE_DIR`. LangSmith uses its own standard env vars.
+`SAMPLE_ROWS` (3; 0 disables), `SCHEMA_NOTES_FILE` (optional), `TRACE_DIR`. `MAX_ROWS` defaults to 50. LangSmith uses its own standard env vars.
 
 ## Database (university/)
 

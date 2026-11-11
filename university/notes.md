@@ -1,0 +1,6 @@
+- A course offering is one course taught by one teacher in one semester.
+- A course can have several offerings in the same semester, each with a different teacher.
+- Grades are numbers from 0 to 100. A NULL grade means the enrollment is in progress and not graded yet.
+- A student can take the same course more than once, in different semesters.
+- Student names are not unique. The email identifies a student.
+- To order semesters in time, use start_date, not name.
