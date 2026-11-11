@@ -109,14 +109,15 @@ production, and what to do first, for each of the five topics in the assignment.
 
 - A command-line tool, configured entirely by environment variables, with pinned dependencies
   (`uv.lock`).
+- GitHub Actions runs the lint and the offline tests on every pull request and on `main`.
 
 **Missing**
 
 - **A service.** Wrap `run()` in a small HTTP API (for example FastAPI) with one endpoint that
   takes a question and returns the answer, the SQL and the run id.
 - **A container.** One image, with configuration and secrets injected at start.
-- **A pipeline.** Lint and offline tests on every change; the live evaluation before a prompt or
-  model change is released.
+- **A release pipeline.** The live evaluation should run before a prompt or model change is
+  released, with the key held as a CI secret, followed by a build and deploy step.
 - **Versioning.** Record the prompt version and model name in each trace (the model name already
   is), so a change in behaviour can be tied to a change in configuration.
 - **Conversations.** For a chat interface, add a LangGraph checkpointer and `interrupt()` so a

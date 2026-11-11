@@ -19,6 +19,8 @@ questions over a SQL database. The owner must present and defend every line, so
   descriptions carry no "Generated with" footer.
 - **`.env.example` stays current:** any change to a setting (new, renamed, new default) updates
   `.env.example` and the Configuration section below in the same commit.
+- **CI:** `.github/workflows/ci.yml` runs `ruff check`, `ruff format --check` and the offline tests
+  on every PR and on `main`. It must stay green and must never need an API key.
 - No abstraction without a second use. No dependency that isn't listed below without asking.
 
 ## Stack
