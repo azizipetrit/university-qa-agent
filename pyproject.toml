@@ -30,6 +30,9 @@ packages = ["src/sqlqa", "university"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Live tests call a real model and cost money. Run them with: uv run pytest -m live
+addopts = "-m 'not live'"
+markers = ["live: calls the real model configured in .env (not run by default)"]
 
 [tool.ruff]
 line-length = 100
