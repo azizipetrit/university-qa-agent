@@ -41,10 +41,10 @@ def found(sql):
             "WHERE a.name = 'Ann' AND title = 'Dune'",
             ["books.title = 'Dune'", "authors.name = 'Ann'"],
         ),
-        # inside a CTE and a subquery
+        # inside a CTE and a subquery, when the columns say which table they mean
         (
-            "WITH cheap AS (SELECT * FROM books WHERE price = 1) SELECT * FROM cheap "
-            "WHERE author_id IN (SELECT id FROM authors WHERE name = 'Ann')",
+            "WITH cheap AS (SELECT * FROM books b WHERE b.price = 1) SELECT * FROM cheap "
+            "WHERE author_id IN (SELECT a.id FROM authors a WHERE a.name = 'Ann')",
             ["books.price = 1", "authors.name = 'Ann'"],
         ),
     ],
@@ -85,6 +85,29 @@ def test_ignores_what_is_not_a_literal_comparison(sql):
 )
 def test_counts_what_it_cannot_resolve_instead_of_guessing(sql):
     assert found(sql) == ([], 1)
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        # a CTE: 'title' could be the CTE's column or the table's
+        "WITH t AS (SELECT * FROM books) SELECT * FROM t WHERE title = 'Dune'",
+        "WITH cheap AS (SELECT * FROM books WHERE price = 1) SELECT * FROM cheap",
+        # a subquery: 'name' is not qualified, so its scope is not certain
+        "SELECT * FROM books WHERE author_id IN (SELECT id FROM authors WHERE name = 'Ann')",
+        "SELECT * FROM (SELECT * FROM books) AS inner_books WHERE title = 'Dune'",
+        "SELECT * FROM books WHERE title = 'Dune' UNION SELECT * FROM books WHERE price > 5",
+    ],
+)
+def test_unqualified_columns_are_skipped_when_the_query_is_nested(sql):
+    """One table would be enough to resolve the column, but with a CTE or subquery in
+    the statement the column may belong to another scope, so it is not trusted."""
+    assert found(sql) == ([], 1)
+
+
+def test_qualified_columns_are_still_checked_when_the_query_is_nested():
+    sql = "SELECT * FROM books b WHERE b.title = 'Dune' AND b.author_id IN (SELECT id FROM authors)"
+    assert found(sql) == (["books.title = 'Dune'"], 0)
 
 
 def test_comparison_keeps_table_column_and_wrapper():

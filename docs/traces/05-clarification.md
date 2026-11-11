@@ -1,4 +1,4 @@
-# Trace 20261111-235134-45a4d1
+# Trace 20261112-000226-1ceaa8
 
 **Question:** How did they do?
 
@@ -6,11 +6,11 @@
 
 **Answer:**
 
-> Who do you mean by "they": which student (give a name or email), and do you want their grades in a particular course or semester, or across all their enrollments?
+> Who do you mean by "they"? Please give the student's name or email, or the course and semester you want grades for.
 
 | Model | Model calls | Queries run | Tokens in / out | Duration |
 |---|---|---|---|---|
-| anthropic:claude-haiku-5-5 | 1 | 0 | 1954 / 168 | 1.5 s |
+| anthropic:claude-haiku-5-5 | 1 | 0 | 1954 / 150 | 1.5 s |
 
 ## Path
 
@@ -104,7 +104,7 @@ Notes:
 
 ### 2. generate_sql (1.5 s)
 
-**Model call** (SqlDecision, 1954 tokens in, 168 out, 1.5 s)
+**Model call** (SqlDecision, 1954 tokens in, 150 out, 1.5 s)
 
 *Prompt, system:*
 
@@ -142,7 +142,7 @@ Question: How did they do?
   "status": "clarify",
   "plan": "",
   "sql": null,
-  "message": "Who do you mean by \"they\": which student (give a name or email), and do you want their grades in a particular course or semester, or across all their enrollments?"
+  "message": "Who do you mean by \"they\"? Please give the student's name or email, or the course and semester you want grades for."
 }
 ```
 
@@ -155,4 +155,4 @@ Question: How did they do?
 - `status`: "clarify"
 - `answer`:
 
-> Who do you mean by "they": which student (give a name or email), and do you want their grades in a particular course or semester, or across all their enrollments?
+> Who do you mean by "they"? Please give the student's name or email, or the course and semester you want grades for.

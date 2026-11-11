@@ -111,6 +111,16 @@ EXAMPLES.append(
     )
 )
 
+EXAMPLES.append(
+    (
+        "13-unverified-figure",
+        "A figure that was not in the results: the answer check adds a note",
+        "What is the average grade in the latest semester?",
+        {},
+        "",  # see NOTES
+    )
+)
+
 REPAIR = "07-repair-scripted"
 DEBUG_BEFORE = "08-debug-before-fix"
 DEBUG_AFTER = "09-debug-after-fix"
@@ -224,6 +234,14 @@ def example_section(name: str, title: str, note: str) -> list[str]:
         ]
         if query.get("filter_check"):
             out += ["```text", *format_filter_check(query["filter_check"]), "```", ""]
+    for step in trace["steps"]:
+        if step["node"] == "verify_answer":
+            finding = step["update"]["verification"]
+            missing = ", ".join(finding["unsupported"]) or "none"
+            out += [
+                f"**Answer check:** {finding['checked']} figure(s) checked, not found: {missing}.",
+                "",
+            ]
     out += [f"**Path:** `{path_of(trace)}`", ""]
     if note:
         out += [note, ""]
@@ -375,11 +393,23 @@ NOTES: dict[str, str] = {
         "such as 'Who is the best?', may instead be answered with a stated assumption, which "
         "the prompt allows."
     ),
+    "13-unverified-figure": (
+        "The same question as example 4, from a run of the live evaluation. The query returned "
+        "the semester's name and a NULL average. The answer also gives a start date, which the "
+        "query did not return: the model took it from the sample rows shown with the schema. "
+        "The date happens to be right, but nothing the run fetched supports it. "
+        "`verify_answer` found it in none of its sources and appended the note. It did not "
+        "call the model again. The model does not always add the date, so re-running this "
+        "example may produce an answer with no note, as in example 4."
+    ),
     "11-missing-value": (
         "No course has this code. An average over no matching rows is one row holding NULL, "
         "which on its own looks like a course that is not graded yet. `check_filters` asked the "
         "database and found that the code does not exist, and listed the six that do. The "
-        "answer reports that as a fact, with no second query and no extra model call."
+        "answer reports that as a fact, with no second query and no extra model call. In "
+        "one run out of four made for this example, the answer step asked for another "
+        "query instead, and `generate_sql` then ended the run as unanswerable with the same "
+        "explanation."
     ),
     "12-wrong-case": (
         "The code exists, written differently. SQLite compares text with `=` case-sensitively, "

@@ -41,12 +41,14 @@ graph TD;
     execute_sql(execute_sql)
     check_filters(check_filters)
     answer(answer)
+    verify_answer(verify_answer)
     give_up(give_up)
     __end__([<p>__end__</p>]):::last
     __start__ --> load_schema;
     answer -.-> __end__;
     answer -.-> generate_sql;
     answer -.-> give_up;
+    answer -.-> verify_answer;
     check_filters -.-> answer;
     check_filters -.-> give_up;
     execute_sql -.-> answer;
@@ -61,6 +63,7 @@ graph TD;
     validate_sql -.-> generate_sql;
     validate_sql -.-> give_up;
     give_up --> __end__;
+    verify_answer --> __end__;
     generate_sql -.-> generate_sql;
     classDef default fill:#f2f0ff,line-height:1.2
     classDef first fill-opacity:0
@@ -77,12 +80,15 @@ This diagram is the output of LangGraph's `draw_mermaid()` on the compiled graph
 | `execute_sql` | no | Runs the query on a read-only connection with a row limit. |
 | `check_filters` | no | Only after an empty result: asks the database whether the query's filter values exist, and which values do. |
 | `answer` | yes | Writes the answer from the rows, or asks for one more query and says why. |
+| `verify_answer` | no | Checks that every number and date in the answer appears in what the run fetched, and adds a note naming any that do not. |
 | `give_up` | no | Ends with an honest failure message when a limit is reached. |
 
-The straight path is `load_schema → generate_sql → validate_sql → execute_sql → answer`, which
+The straight path is `load_schema → generate_sql → validate_sql → execute_sql → answer →
+verify_answer`, which
 costs two model calls. When a query returns nothing, `check_filters` runs before `answer` and
 gives it evidence: whether each filter value exists, and if not, what does. It makes no model
-call. Three things send a run back to `generate_sql`, each with its own limit:
+call. After the answer is written, `verify_answer` checks its figures against the results, also
+without a model call. Three things send a run back to `generate_sql`, each with its own limit:
 
 | Loop | Trigger | Limit |
 | --- | --- | --- |
@@ -100,8 +106,8 @@ The reasoning behind each choice is in [docs/DESIGN.md](docs/DESIGN.md).
 | LangGraph agent | [`src/sqlqa/graph.py`](src/sqlqa/graph.py), [`src/sqlqa/nodes.py`](src/sqlqa/nodes.py), [`src/sqlqa/prompts.py`](src/sqlqa/prompts.py) |
 | Database-agnostic design | [`src/sqlqa/db.py`](src/sqlqa/db.py) introspects the schema; everything university-specific is in [`university/`](university/) |
 | Tracing | [`src/sqlqa/tracing.py`](src/sqlqa/tracing.py), example traces in [`docs/traces/`](docs/traces/) |
-| Debugging and error handling | [`src/sqlqa/sql_guard.py`](src/sqlqa/sql_guard.py), [`src/sqlqa/filter_check.py`](src/sqlqa/filter_check.py), the loops above, and the walkthrough in [docs/EXAMPLES.md](docs/EXAMPLES.md#debugging-a-wrong-answer) |
-| Unit tests | [`tests/`](tests/): 169 offline tests, plus 16 live evaluation questions |
+| Debugging and error handling | [`src/sqlqa/sql_guard.py`](src/sqlqa/sql_guard.py), [`src/sqlqa/filter_check.py`](src/sqlqa/filter_check.py), [`src/sqlqa/answer_check.py`](src/sqlqa/answer_check.py), the loops above, and the walkthrough in [docs/EXAMPLES.md](docs/EXAMPLES.md#debugging-a-wrong-answer) |
+| Unit tests | [`tests/`](tests/): 219 offline tests, plus 16 live evaluation questions |
 | Code quality | One responsibility per module; see the layout below |
 | Production considerations | [docs/PRODUCTION.md](docs/PRODUCTION.md) |
 | Example queries and outputs | [docs/EXAMPLES.md](docs/EXAMPLES.md) |
@@ -114,6 +120,7 @@ src/sqlqa/            the agent; knows nothing about universities
   db.py               read-only engine, schema introspection, query execution
   sql_guard.py        the SELECT-only check (sqlglot)
   filter_check.py     after an empty result: do the query's filter values exist?
+  answer_check.py     after the answer: is every figure in it backed by the results?
   llm.py              model creation, output shapes, the one function that calls the model
   prompts.py          prompt text with placeholders
   state.py            the state that flows through the graph
@@ -130,7 +137,7 @@ scripts/              make_examples.py regenerates docs/traces/ and docs/EXAMPLE
 ## Tests
 
 ```bash
-uv run pytest             # 169 tests, offline, about 2 seconds, no API key needed
+uv run pytest             # 219 tests, offline, about 3 seconds, no API key needed
 uv run pytest -m live     # 16 real questions against the real model (costs a few cents)
 uv run ruff check .
 ```
@@ -149,7 +156,7 @@ run must have fetched from the database.
 
 Every run writes one JSON file to `traces/` with every node, every prompt and reply, the SQL, the
 guard's verdict, every returned row, timings and token counts. `sqlqa render-trace` turns it into
-Markdown. Eleven example traces, in both forms, are in [`docs/traces/`](docs/traces/).
+Markdown. Twelve example traces, in both forms, are in [`docs/traces/`](docs/traces/).
 
 LangSmith works as well, with no code change: set `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY`
 and `LANGSMITH_PROJECT` in `.env`.

@@ -1,4 +1,4 @@
-# Trace 20261111-235135-f88a3a
+# Trace 20261112-000228-70e381
 
 **Question:** Delete all students.
 
@@ -6,11 +6,11 @@
 
 **Answer:**
 
-> This database is read-only for question answering: the request asks to delete rows, and only a single SELECT statement is allowed. The schema also cannot perform deletions.
+> This database is read-only for this system: it only supports SELECT queries, so students cannot be deleted here.
 
 | Model | Model calls | Queries run | Tokens in / out | Duration |
 |---|---|---|---|---|
-| anthropic:claude-haiku-5-5 | 1 | 0 | 1955 / 77 | 1.3 s |
+| anthropic:claude-haiku-5-5 | 1 | 0 | 1955 / 60 | 1.2 s |
 
 ## Path
 
@@ -102,9 +102,9 @@ Notes:
 - `dialect`: "sqlite"
 
 
-### 2. generate_sql (1.3 s)
+### 2. generate_sql (1.2 s)
 
-**Model call** (SqlDecision, 1955 tokens in, 77 out, 1.3 s)
+**Model call** (SqlDecision, 1955 tokens in, 60 out, 1.2 s)
 
 *Prompt, system:*
 
@@ -142,7 +142,7 @@ Question: Delete all students.
   "status": "unanswerable",
   "plan": "",
   "sql": null,
-  "message": "This database is read-only for question answering: the request asks to delete rows, and only a single SELECT statement is allowed. The schema also cannot perform deletions."
+  "message": "This database is read-only for this system: it only supports SELECT queries, so students cannot be deleted here."
 }
 ```
 
@@ -155,4 +155,4 @@ Question: Delete all students.
 - `status`: "unanswerable"
 - `answer`:
 
-> This database is read-only for question answering: the request asks to delete rows, and only a single SELECT statement is allowed. The schema also cannot perform deletions.
+> This database is read-only for this system: it only supports SELECT queries, so students cannot be deleted here.

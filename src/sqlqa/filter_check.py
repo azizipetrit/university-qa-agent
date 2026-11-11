@@ -65,10 +65,16 @@ def find_comparisons(
         if node.name.lower() in known
     }
 
+    # With a CTE or a subquery, an unqualified column may belong to a different scope
+    # than the tables we can see, so only qualified columns are trusted.
+    nested = len(list(tree.find_all(exp.Select))) > 1
+
     def resolve(col: exp.Column) -> tuple[str, str] | None:
         """The (table, column) a column reference certainly points at, or None."""
         if col.table:
             candidates = [aliases[col.table.lower()]] if col.table.lower() in aliases else []
+        elif nested:
+            return None
         else:
             candidates = sorted(set(aliases.values()))
         matches = [

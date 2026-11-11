@@ -9,7 +9,7 @@ production, and what to do first, for each of the five topics in the assignment.
 
 - Rejected SQL is repaired, with limits on attempts, queries and model calls, so a run always ends.
 - A run that fails says so, with the last error. A run that crashes still writes its trace.
-- 169 offline tests, and a 16-question live evaluation that caught a real wrong answer (see
+- 219 offline tests, and a 16-question live evaluation that caught a real wrong answer (see
   [EXAMPLES.md](EXAMPLES.md#debugging-a-wrong-answer)).
 
 **Missing**
@@ -20,8 +20,9 @@ production, and what to do first, for each of the five topics in the assignment.
   request timeout, a fallback model, and a clear message to the user.
 - **Evaluation in CI.** The live evaluation is run by hand. Run it on every prompt or model change
   and nightly, and grow it from real failed questions.
-- **Answer checking.** Nothing verifies that the written answer matches the rows. A second, cheap
-  model call could check it for high-stakes use.
+- **Deeper answer checking.** `verify_answer` confirms that every number and date in the answer
+  was fetched by the run. It does not check names, or that a figure is attached to the right
+  thing, or arithmetic. A second, cheap model call could check those for high-stakes use.
 
 **First step:** statement timeout and model request timeout. Both are configuration.
 

@@ -110,10 +110,10 @@ everywhere. The connection-level switch is only implemented for SQLite.
 
 ## The agent (`src/sqlqa/graph.py`, `nodes.py`)
 
-An explicit LangGraph `StateGraph` with seven nodes. Two call the model; five are plain code.
+An explicit LangGraph `StateGraph` with eight nodes. Two call the model; six are plain code.
 
 ```text
-load_schema -> generate_sql -> validate_sql -> execute_sql -----------------> answer -> END
+load_schema -> generate_sql -> validate_sql -> execute_sql -----------------> answer -> verify_answer -> END
                     ^               |               |    \                  ^   |
                     |               |               |     +-> check_filters -+   |
                     +---------------+---------------+----------------------------+
@@ -129,6 +129,7 @@ load_schema -> generate_sql -> validate_sql -> execute_sql -----------------> an
 | `execute_sql` | no | Runs the query read-only and records the result. |
 | `check_filters` | no | Only after an empty result: asks the database whether the query's filter values exist. |
 | `answer` | yes | Returns the answer, or asks for one more query and says why. |
+| `verify_answer` | no | Only after an answer: checks that every figure in it was fetched by the run. |
 | `give_up` | no | Ends the run with an honest failure message when a limit is hit. |
 
 The model never chooses which node runs next. It returns a small structured object, and plain
@@ -215,6 +216,9 @@ this sense, because the query did find the semester.
 - A comparison is checked only if its column resolves to exactly one real table. Anything else is
   skipped and counted, and the count is shown: ranges, negations, expressions, columns of a CTE,
   an unqualified column that two tables share.
+- When the statement contains a CTE, a subquery or a set operation, an unqualified column is
+  always skipped. It may belong to a different scope than the tables that can be seen, so only
+  columns written with their table or alias are trusted there.
 - At most `MAX_FILTER_PROBES` (5) comparisons are checked per query.
 
 **What it reveals, and the switch for it.** Values listed by the check are sent to the model
@@ -232,6 +236,65 @@ call. A wrongly cased value still costs a second query, which counts as one of t
 exists and the result is still empty, it cannot say whether the rows matched and hold NULLs or
 the combination matched nothing. Telling those apart would need a rewritten `COUNT(*)` version of
 the model's query, which means executing SQL that sqlglot generated.
+
+### Checking the answer against the results (`src/sqlqa/answer_check.py`)
+
+The assignment asks for "inconsistent results" to be detected. The case that happened here: a
+query returned a semester's name and a NULL average, and the answer also gave the semester's
+start date. The query never returned that date. The model had seen it in the sample rows that are
+shown with the schema. The date was correct, but nothing the run fetched supported it, and a
+reader could not have known that from the answer.
+
+**What it does.** After `answer` writes an answer, `verify_answer` runs. It makes no model call.
+
+1. It finds the numbers and ISO dates in the answer.
+2. It looks for each one in the places a figure may legitimately come from: the rows of every
+   query in the run, what the filter check reported, the question, and the schema notes.
+3. Any figure found in none of them is recorded, and one sentence is appended to the answer:
+   "Note: these figures were not found in the query results and could not be verified: ...".
+
+It does not ask the model to try again, and the run's status stays `answered`. The finding is
+stored in the state as `verification` and written to the trace.
+
+**What counts as a match.**
+
+| Rule | Example |
+| --- | --- |
+| Rounding to the precision written | "about 91.33" is supported by 91.3333 |
+| A number inside a text value | "2026" is supported by `Fall 2026` |
+| A whole number up to a result's row count | "2 of them" when a result has 3 rows |
+| A date, only as a whole date | "2026-09-07" needs that date in a result |
+| The year of a date in the results | "2025" is supported by `2025-09-01` |
+
+Digits that are part of a code or an email (`CS101`, `kim2@...`) are not figures, and number
+words ("two students") are not checked.
+
+**Why the sample rows are not a source, and the notes are.** The sample rows are where the
+leaked date came from, so counting them would hide exactly the case this check exists for. The
+notes are documentation the answer prompt tells the model to use, so "grades run from 0 to 100"
+is a legitimate thing to say.
+
+**It checks presence, not arithmetic.** If the answer says one average is "9.0 points higher"
+than another, 9.0 was computed, not fetched, and gets the note. The note's wording is deliberate:
+"not found in the query results", not "wrong". Accepting sums and differences of any two result
+values would silence that, but with a few dozen values in a result nearly any small number
+becomes "supported" by coincidence.
+
+**Does it stay quiet on correct answers?** That is what makes it useful, so it was measured. On
+the re-run examples and a full live evaluation, 21 runs ended in an answer:
+
+| Runs with an answer | Got the note | Of those, right to |
+| --- | --- | --- |
+| 21 | 1 | 1 |
+
+The one note was the start date again, in the live evaluation's run of the latest-semester
+question. It is committed as example 13 in [EXAMPLES.md](EXAMPLES.md). No correct answer got a
+note in these runs. That is a small sample, and a computed figure in an otherwise correct answer
+will get one.
+
+**What it does not catch.** A wrong name. A correct number attached to the wrong thing. A figure
+that is wrong but happens to appear somewhere in the results. It lowers the chance of an
+unsupported figure going unnoticed; it does not prove an answer right.
 
 ### Ambiguous questions
 
@@ -285,7 +348,7 @@ well, because LangGraph and langchain report to it on their own.
 
 Two kinds of test answer two different questions.
 
-- **Does the code do what it should?** 169 offline tests. The model is replaced by a scripted
+- **Does the code do what it should?** 219 offline tests. The model is replaced by a scripted
   stand-in (`tests/fakes.py`) that returns prepared replies in order and records every prompt. The
   database, the guard, the graph and the tracer are all real. These tests are exact and free, and
   they cannot say anything about the quality of a real model's SQL.
@@ -294,7 +357,8 @@ Two kinds of test answer two different questions.
   correct run must have fetched (for example `73.75`), and the expected status. Whole result sets
   are not compared, because a correct query that selects one extra column would fail. Two of
   them name a value that is not in the data (a course code that does not exist, and one written in
-  the wrong case); for those the run must also contain a filter check that reported it.
+  the wrong case); for those the run must also contain a filter check that reported it. The
+  missing-value question may end as `answered` or as `unanswerable` after its query.
 
 The live evaluation is not run by default, because it needs a key and costs money.
 
@@ -308,6 +372,7 @@ The live evaluation is not run by default, because it needs a key and costs mone
 | `anthropic:claude-haiku-5-5` (the default) | Current, with the open-ended question added | 15 of 15 | 1 |
 | `anthropic:claude-haiku-5-5` (the default) | Current, with `check_filters` and two more questions | 16 of 17, then 17 of 17 | 2 |
 | `anthropic:claude-haiku-5-5` (the default) | Current, after the two question changes below | 16 of 16 | 1 |
+| `anthropic:claude-haiku-5-5` (the default) | Current, with `verify_answer` | 16 of 16 | 1 |
 
 - The one Opus failure was a real misreading of "latest semester". It is written up in
   [EXAMPLES.md](EXAMPLES.md#debugging-a-wrong-answer), and fixed by one line in the schema notes.
@@ -335,8 +400,15 @@ The live evaluation is not run by default, because it needs a key and costs mone
 - **No query timeout.**
 - **The whole schema goes into every prompt.** Fine for six tables, not for six hundred.
 - **The guard checks tables, not columns or functions.** A wrong column costs one repair attempt.
-- **The answer is not verified against the rows.** The answer prompt forbids invented values, and
-  the trace lets a person check, but no code does.
+- **The answer check covers figures only.** Numbers and dates in the answer are checked against
+  what the run fetched. Names, and whether a figure is attached to the right thing, are not.
+- **Computed figures get the note.** A difference, sum or percentage the model worked out is not
+  in the results, so the answer check reports it as not found even when it is right.
+- **The missing-value question does not always end the same way.** In one run out of four, the
+  answer step asked for another query after the filter check had already said the value did not
+  exist, and `generate_sql` then ended the run as `unanswerable`. The explanation given to the
+  user was the same on both paths, so the golden question accepts either status, as long as the
+  filter check reported the missing value. The longer path costs one extra model call.
 - **The filter check covers simple comparisons only.** It reads `=`, `IN` and `LIKE` against a
   literal. A filter written another way (a range, a function other than `LOWER` or `UPPER`, a
   value computed in a subquery) is skipped, and the answer step is back to judging without
@@ -415,8 +487,15 @@ Small choices made without discussion, simplest option taken.
 - An empty result is held in the state as `pending` and recorded in `queries` by `check_filters`,
   together with its finding. That keeps `queries` append-only: every query appears once in the
   trace, in the step that recorded it.
-- An unqualified column in a filter is resolved against every real table the statement reads, not
-  only the tables in the same subquery. If more than one has it, the comparison is skipped.
 - Each value of an `IN` list is checked as its own comparison and counts towards the probe cap.
 - The filter check does not run on a result that has at least one non-NULL value.
 - `Database.execute` accepts SQL text or a SQLAlchemy Core statement; the probes use the latter.
+- `verify_answer` runs only when the status is `answered`. Clarifying questions, refusals and
+  failures are not checked.
+- Sentences the code itself appends to an answer start with "Note:" and are not checked, so the
+  query-limit note cannot trigger the answer check.
+- The SQL text is not a source for the answer check. A number that appears only in the query, and
+  not in the question or the results, is reported.
+- A figure followed by `%` matches a result value equal to it or to a hundredth of it.
+- Example 13 was copied from a live evaluation run, because the model does not add the unsupported
+  date every time.

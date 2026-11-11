@@ -8,7 +8,15 @@ from sqlqa.graph import build_graph, run
 from sqlqa.llm import AnswerDecision, FinalAnswer
 from sqlqa.tracing import Tracer, render_markdown
 
-HAPPY_PATH = ["load_schema", "generate_sql", "validate_sql", "execute_sql", "answer"]
+HAPPY_PATH = [
+    "load_schema",
+    "generate_sql",
+    "validate_sql",
+    "execute_sql",
+    "answer",
+    "verify_answer",
+]
+VERIFY = ["verify_answer"]  # every answered run ends with it
 ONE_QUERY = ["generate_sql", "validate_sql", "execute_sql", "answer"]
 CHECKED_QUERY = ["generate_sql", "validate_sql", "execute_sql", "check_filters", "answer"]
 
@@ -66,6 +74,7 @@ def test_database_error_is_repaired(db, tmp_path):
         "validate_sql",
         "execute_sql",
         "answer",
+        "verify_answer",
     ]
     assert run.state["status"] == "answered"
     assert len(run.state["queries"]) == 1  # only the query that worked is recorded
@@ -138,7 +147,7 @@ def test_empty_result_can_be_the_answer_with_no_extra_model_call(db, tmp_path):
         ),
         answer("None yet. Fall 2026 is still in progress."),
     )
-    assert run.path == ["load_schema", *CHECKED_QUERY]
+    assert run.path == ["load_schema", *CHECKED_QUERY, *VERIFY]
     assert run.state["queries"][0]["rows"] == []
     assert run.state["llm_calls"] == 2  # check_filters does not call the model
 
@@ -159,7 +168,7 @@ def test_empty_result_from_a_wrong_filter_is_corrected_with_a_second_query(db, t
         ),
         answer("Three."),
     )
-    assert run.path == ["load_schema", *CHECKED_QUERY, *ONE_QUERY]
+    assert run.path == ["load_schema", *CHECKED_QUERY, *ONE_QUERY, *VERIFY]
     assert [q["rows"] for q in run.state["queries"]] == [[], [[3]]]
     assert run.state["queries"][1]["reason"].startswith("0 rows:")
 
@@ -189,7 +198,7 @@ def test_check_filters_runs_only_when_the_result_is_empty(db, tmp_path):
     empty = ask(
         db, tmp_path, "q", sql("SELECT name FROM teachers WHERE name = 'Nobody'"), answer("None.")
     )
-    assert empty.path == ["load_schema", *CHECKED_QUERY]
+    assert empty.path == ["load_schema", *CHECKED_QUERY, *VERIFY]
 
 
 def test_missing_value_is_reported_with_the_values_that_exist(db, tmp_path):
@@ -252,7 +261,7 @@ def test_wrongly_cased_value_is_reported_with_the_real_spelling(db, tmp_path):
     assert "but 'MATH201' exists (different case)" in run.llm.calls[1]["human"]
     assert second["rows"] == [[86.0]]
     assert second["filter_check"] is None
-    assert run.path == ["load_schema", *CHECKED_QUERY, *ONE_QUERY]
+    assert run.path == ["load_schema", *CHECKED_QUERY, *ONE_QUERY, *VERIFY]
 
 
 def test_real_empty_result_is_confirmed_when_every_value_exists(db, tmp_path):
@@ -331,6 +340,107 @@ def test_same_check_works_on_an_unrelated_database(bookstore_db, tmp_path):
     assert item["detail"].endswith("the column holds only: 'Ursula Le Guin', 'Italo Calvino'")
 
 
+# --- verify_answer: figures in the answer must come from the run ---------------
+
+
+def test_answer_with_supported_figures_is_left_alone(db, tmp_path):
+    run = ask(
+        db,
+        tmp_path,
+        "What is the average grade in CS101?",
+        sql(AVG_CS101),
+        answer("The average grade in CS101 is 73.75."),
+    )
+    assert run.path[-1] == "verify_answer"
+    assert run.state["verification"] == {"checked": 1, "unsupported": []}
+    assert run.state["answer"] == "The average grade in CS101 is 73.75."  # no note
+    assert run.state["llm_calls"] == 2  # verify_answer does not call the model
+
+
+def test_figure_that_is_not_in_the_results_gets_a_note(db, tmp_path):
+    """The real case that prompted this check: a date taken from the sample rows."""
+    run = ask(
+        db,
+        tmp_path,
+        "What is the average grade in the latest semester?",
+        sql(
+            "SELECT s.name, AVG(e.grade) AS average FROM enrollments e "
+            "JOIN course_offerings o ON o.id = e.offering_id "
+            "JOIN semesters s ON s.id = o.semester_id WHERE s.id = 3 GROUP BY s.name"
+        ),
+        answer("The latest semester is Fall 2026 (start date 2026-09-07). No average yet."),
+    )
+    assert run.state["queries"][0]["rows"] == [["Fall 2026", None]]
+    assert run.state["verification"] == {"checked": 2, "unsupported": ["2026-09-07"]}
+    assert run.state["answer"] == (
+        "The latest semester is Fall 2026 (start date 2026-09-07). No average yet."
+        "\n\nNote: these figures were not found in the query results and could not be "
+        "verified: 2026-09-07."
+    )
+    assert run.state["status"] == "answered"  # the status does not change
+    assert run.state["llm_calls"] == 2  # and the model is not asked again
+
+
+def test_wrong_number_gets_a_note(db, tmp_path):
+    run = ask(db, tmp_path, "q", sql(AVG_CS101), answer("The average is 78.4, from 12 grades."))
+    assert run.state["verification"]["unsupported"] == ["78.4", "12"]
+    assert run.state["answer"].endswith("could not be verified: 78.4, 12.")
+
+
+def test_verification_is_in_the_trace_and_the_markdown_view(db, tmp_path):
+    run = ask(db, tmp_path, "q", sql(AVG_CS101), answer("The average is 78.4."))
+    step = run.trace["steps"][-1]
+    assert step["node"] == "verify_answer"
+    assert step["llm_calls"] == []
+    assert step["update"]["verification"] == {"checked": 1, "unsupported": ["78.4"]}
+    assert "could not be verified: 78.4." in step["update"]["answer"]
+    assert run.trace["answer"] == run.state["answer"]  # the trace header has the note too
+
+    markdown = render_markdown(run.trace)
+    assert "### 6. verify_answer" in markdown
+    assert '- `verification`: {"checked": 1, "unsupported": ["78.4"]}' in markdown
+
+
+def test_figures_from_the_filter_check_and_the_question_are_supported(db, tmp_path):
+    run = ask(
+        db,
+        tmp_path,
+        "How many offerings were there in 2024?",
+        sql(
+            "SELECT o.id FROM course_offerings o JOIN semesters s ON s.id = o.semester_id "
+            "WHERE s.year = 2024"
+        ),
+        answer("None. There is no 2024 semester; the years in the data are 2025 and 2026."),
+    )
+    detail = run.state["queries"][0]["filter_check"]["checked"][0]["detail"]
+    assert detail == "no row has this value; the column holds only: 2025, 2026"
+    assert run.state["verification"] == {"checked": 3, "unsupported": []}
+
+
+def test_runs_that_do_not_end_in_an_answer_are_not_verified(db, tmp_path):
+    asked = ask(db, tmp_path, "How did they do?", clarify("Who do you mean? Give 1 name."))
+    assert "verify_answer" not in asked.path
+    assert "verification" not in asked.state
+
+    failed = ask(db, tmp_path, "q", sql("SELECT * FROM a"), max_llm_calls=1)
+    assert failed.path[-1] == "give_up"
+    assert "verify_answer" not in failed.path
+
+
+def test_note_added_at_the_query_limit_is_not_itself_checked(db, tmp_path):
+    run = ask(
+        db,
+        tmp_path,
+        "q",
+        sql("SELECT 41"),
+        final("The value is 41.", complete=False),
+        max_queries=1,
+    )
+    # The limit note says "1 queries"; that sentence is the code's, not the model's.
+    assert run.state["verification"] == {"checked": 1, "unsupported": []}
+    assert run.state["answer"].endswith("The limit of 1 queries per question was reached.")
+
+
 # --- multi-step loop ---------------------------------------------------------
 
 
@@ -347,7 +457,7 @@ def test_second_query_is_run_when_the_answer_node_asks_for_it(db, tmp_path):
         ),
         answer("There are two: daniel.kim@ averages 62.5, daniel.kim2@ averages 91.3."),
     )
-    assert run.path == ["load_schema", *ONE_QUERY, *ONE_QUERY]
+    assert run.path == ["load_schema", *ONE_QUERY, *ONE_QUERY, *VERIFY]
     assert run.state["status"] == "answered"
     assert len(run.state["queries"]) == 2
     assert run.state["queries"][0]["reason"] == "Answer the user's question."
@@ -469,5 +579,6 @@ def test_graph_has_exactly_the_documented_nodes(db, tmp_path):
         "execute_sql",
         "check_filters",
         "answer",
+        "verify_answer",
         "give_up",
     }

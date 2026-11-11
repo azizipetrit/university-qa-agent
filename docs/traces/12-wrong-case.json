@@ -1,6 +1,6 @@
 {
-  "run_id": "20261111-235141-985a06",
-  "started_at": "2026-11-11T23:51:41",
+  "run_id": "20261112-000237-eb9c15",
+  "started_at": "2026-11-12T00:02:37",
   "question": "What is the average grade for the course with code 'Math201'?",
   "model": "anthropic:claude-haiku-5-5",
   "steps": [
@@ -38,8 +38,8 @@
           ],
           "output": {
             "status": "sql",
-            "plan": "Average the graded enrollments across all offerings of the course with code 'Math201', joining enrollments to course_offerings and courses. NULL grades (in progress) are excluded by AVG. The course code and title are included to identify the course.",
-            "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title;",
+            "plan": "Averages the grade across all graded enrollments for the course with code 'Math201', over all of its offerings and semesters. Enrollments with NULL grades (in progress) are ignored by AVG. The result includes the course id and code to identify the course.",
+            "sql": "SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code",
             "message": null
           },
           "raw": [
@@ -48,14 +48,14 @@
               "type": "thinking"
             },
             {
-              "text": "{\"status\":\"sql\",\"plan\":\"Average the graded enrollments across all offerings of the course with code 'Math201', joining enrollments to course_offerings and courses. NULL grades (in progress) are excluded by AVG. The course code and title are included to identify the course.\",\"sql\":\"SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title;\",\"message\":null}",
+              "text": "{\"status\":\"sql\",\"plan\":\"Averages the grade across all graded enrollments for the course with code 'Math201', over all of its offerings and semesters. Enrollments with NULL grades (in progress) are ignored by AVG. The result includes the course id and code to identify the course.\",\"sql\":\"SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code\",\"message\":null}",
               "type": "text"
             }
           ],
           "usage": {
             "input_tokens": 1967,
-            "output_tokens": 476,
-            "total_tokens": 2443,
+            "output_tokens": 474,
+            "total_tokens": 2441,
             "input_token_details": {
               "cache_read": 0,
               "cache_creation": 0,
@@ -63,21 +63,21 @@
               "ephemeral_1h_input_tokens": 0
             },
             "output_token_details": {
-              "reasoning": 272
+              "reasoning": 271
             }
           },
           "error": null,
-          "duration_ms": 2384
+          "duration_ms": 2465
         }
       ],
       "update": {
         "llm_calls": 1,
         "attempts": 1,
-        "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title;",
+        "sql": "SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code",
         "error": null,
-        "plan": "Average the graded enrollments across all offerings of the course with code 'Math201', joining enrollments to course_offerings and courses. NULL grades (in progress) are excluded by AVG. The course code and title are included to identify the course."
+        "plan": "Averages the grade across all graded enrollments for the course with code 'Math201', over all of its offerings and semesters. Enrollments with NULL grades (in progress) are ignored by AVG. The result includes the course id and code to identify the course."
       },
-      "duration_ms": 2384
+      "duration_ms": 2465
     },
     {
       "node": "validate_sql",
@@ -93,11 +93,11 @@
       "update": {
         "pending": {
           "reason": "Answer the user's question.",
-          "plan": "Average the graded enrollments across all offerings of the course with code 'Math201', joining enrollments to course_offerings and courses. NULL grades (in progress) are excluded by AVG. The course code and title are included to identify the course.",
-          "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title;",
+          "plan": "Averages the grade across all graded enrollments for the course with code 'Math201', over all of its offerings and semesters. Enrollments with NULL grades (in progress) are ignored by AVG. The result includes the course id and code to identify the course.",
+          "sql": "SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code",
           "columns": [
+            "id",
             "code",
-            "title",
             "average_grade"
           ],
           "rows": [],
@@ -116,11 +116,11 @@
         "queries": [
           {
             "reason": "Answer the user's question.",
-            "plan": "Average the graded enrollments across all offerings of the course with code 'Math201', joining enrollments to course_offerings and courses. NULL grades (in progress) are excluded by AVG. The course code and title are included to identify the course.",
-            "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title;",
+            "plan": "Averages the grade across all graded enrollments for the course with code 'Math201', over all of its offerings and semesters. Enrollments with NULL grades (in progress) are ignored by AVG. The result includes the course id and code to identify the course.",
+            "sql": "SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code",
             "columns": [
+              "id",
               "code",
-              "title",
               "average_grade"
             ],
             "rows": [],
@@ -153,19 +153,19 @@
             ],
             [
               "human",
-              "Question: What is the average grade for the course with code 'Math201'?\n\nQuery 1\nReason: Answer the user's question.\nPlan: Average the graded enrollments across all offerings of the course with code 'Math201', joining enrollments to course_offerings and courses. NULL grades (in progress) are excluded by AVG. The course code and title are included to identify the course.\nSQL: SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title;\nResult: 0 rows. The query matched nothing.\nFilter check (the database was asked whether each filter value exists):\n- courses.code = 'Math201': no row has this value, but 'MATH201' exists (different case)\n\n1 of 3 queries have been used. Choose a status:\n- \"answer\": the results are enough. Write the answer.\n- \"need_query\": the question cannot be answered without another query. Say in `reason` what it must find and why. Ask only when the answer truly depends on it."
+              "Question: What is the average grade for the course with code 'Math201'?\n\nQuery 1\nReason: Answer the user's question.\nPlan: Averages the grade across all graded enrollments for the course with code 'Math201', over all of its offerings and semesters. Enrollments with NULL grades (in progress) are ignored by AVG. The result includes the course id and code to identify the course.\nSQL: SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code\nResult: 0 rows. The query matched nothing.\nFilter check (the database was asked whether each filter value exists):\n- courses.code = 'Math201': no row has this value, but 'MATH201' exists (different case)\n\n1 of 3 queries have been used. Choose a status:\n- \"answer\": the results are enough. Write the answer.\n- \"need_query\": the question cannot be answered without another query. Say in `reason` what it must find and why. Ask only when the answer truly depends on it."
             ]
           ],
           "output": {
             "status": "need_query",
             "answer": null,
-            "reason": "The filter check found no courses.code value 'Math201' but found 'MATH201' (different case). Run the same average-grade query with c.code = 'MATH201' to get the average for that course, excluding in-progress NULL grades."
+            "reason": "The query for courses.code = 'Math201' returned 0 rows, but the filter check shows the value 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, over all its graded enrollments."
           },
-          "raw": "{\"status\":\"need_query\",\"answer\":null,\"reason\":\"The filter check found no courses.code value 'Math201' but found 'MATH201' (different case). Run the same average-grade query with c.code = 'MATH201' to get the average for that course, excluding in-progress NULL grades.\"}",
+          "raw": "{\"status\":\"need_query\",\"answer\":null,\"reason\":\"The query for courses.code = 'Math201' returned 0 rows, but the filter check shows the value 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, over all its graded enrollments.\"}",
           "usage": {
-            "input_tokens": 2241,
-            "output_tokens": 94,
-            "total_tokens": 2335,
+            "input_tokens": 2240,
+            "output_tokens": 107,
+            "total_tokens": 2347,
             "input_token_details": {
               "cache_read": 0,
               "cache_creation": 0,
@@ -177,16 +177,16 @@
             }
           },
           "error": null,
-          "duration_ms": 1244
+          "duration_ms": 1833
         }
       ],
       "update": {
         "llm_calls": 2,
-        "reason": "The filter check found no courses.code value 'Math201' but found 'MATH201' (different case). Run the same average-grade query with c.code = 'MATH201' to get the average for that course, excluding in-progress NULL grades.",
+        "reason": "The query for courses.code = 'Math201' returned 0 rows, but the filter check shows the value 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, over all its graded enrollments.",
         "sql": null,
         "error": null
       },
-      "duration_ms": 1244
+      "duration_ms": 1833
     },
     {
       "node": "generate_sql",
@@ -200,13 +200,13 @@
             ],
             [
               "human",
-              "Question: What is the average grade for the course with code 'Math201'?\n\nQueries already run:\n\nQuery 1\nReason: Answer the user's question.\nPlan: Average the graded enrollments across all offerings of the course with code 'Math201', joining enrollments to course_offerings and courses. NULL grades (in progress) are excluded by AVG. The course code and title are included to identify the course.\nSQL: SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title;\nResult: 0 rows. The query matched nothing.\nFilter check (the database was asked whether each filter value exists):\n- courses.code = 'Math201': no row has this value, but 'MATH201' exists (different case)\n\nRequest for the next query: The filter check found no courses.code value 'Math201' but found 'MATH201' (different case). Run the same average-grade query with c.code = 'MATH201' to get the average for that course, excluding in-progress NULL grades."
+              "Question: What is the average grade for the course with code 'Math201'?\n\nQueries already run:\n\nQuery 1\nReason: Answer the user's question.\nPlan: Averages the grade across all graded enrollments for the course with code 'Math201', over all of its offerings and semesters. Enrollments with NULL grades (in progress) are ignored by AVG. The result includes the course id and code to identify the course.\nSQL: SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code\nResult: 0 rows. The query matched nothing.\nFilter check (the database was asked whether each filter value exists):\n- courses.code = 'Math201': no row has this value, but 'MATH201' exists (different case)\n\nRequest for the next query: The query for courses.code = 'Math201' returned 0 rows, but the filter check shows the value 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, over all its graded enrollments."
             ]
           ],
           "output": {
             "status": "sql",
-            "plan": "The first query matched nothing because the stored code is 'MATH201', not 'Math201'. This query uses the stored value and averages the graded enrollments across all offerings of that course. AVG skips NULL grades, so in-progress enrollments are excluded. The code and title are selected to identify the course.",
-            "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code, c.title;",
+            "plan": "The filter value 'Math201' matched nothing, but the course code 'MATH201' exists with different capitalization, so this query assumes that is the intended course. It averages the grade over all graded enrollments across all of its offerings and semesters, ignoring NULL (in-progress) grades, and returns the course id and code to identify the course.",
+            "sql": "SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code",
             "message": null
           },
           "raw": [
@@ -215,14 +215,14 @@
               "type": "thinking"
             },
             {
-              "text": "{\"status\":\"sql\",\"plan\":\"The first query matched nothing because the stored code is 'MATH201', not 'Math201'. This query uses the stored value and averages the graded enrollments across all offerings of that course. AVG skips NULL grades, so in-progress enrollments are excluded. The code and title are selected to identify the course.\",\"sql\":\"SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code, c.title;\",\"message\":null}",
+              "text": "{\"status\":\"sql\",\"plan\":\"The filter value 'Math201' matched nothing, but the course code 'MATH201' exists with different capitalization, so this query assumes that is the intended course. It averages the grade over all graded enrollments across all of its offerings and semesters, ignoring NULL (in-progress) grades, and returns the course id and code to identify the course.\",\"sql\":\"SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code\",\"message\":null}",
               "type": "text"
             }
           ],
           "usage": {
-            "input_tokens": 2333,
-            "output_tokens": 388,
-            "total_tokens": 2721,
+            "input_tokens": 2345,
+            "output_tokens": 427,
+            "total_tokens": 2772,
             "input_token_details": {
               "cache_read": 0,
               "cache_creation": 0,
@@ -230,21 +230,21 @@
               "ephemeral_1h_input_tokens": 0
             },
             "output_token_details": {
-              "reasoning": 162
+              "reasoning": 195
             }
           },
           "error": null,
-          "duration_ms": 2931
+          "duration_ms": 2298
         }
       ],
       "update": {
         "llm_calls": 3,
         "attempts": 1,
-        "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code, c.title;",
+        "sql": "SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code",
         "error": null,
-        "plan": "The first query matched nothing because the stored code is 'MATH201', not 'Math201'. This query uses the stored value and averages the graded enrollments across all offerings of that course. AVG skips NULL grades, so in-progress enrollments are excluded. The code and title are selected to identify the course."
+        "plan": "The filter value 'Math201' matched nothing, but the course code 'MATH201' exists with different capitalization, so this query assumes that is the intended course. It averages the grade over all graded enrollments across all of its offerings and semesters, ignoring NULL (in-progress) grades, and returns the course id and code to identify the course."
       },
-      "duration_ms": 2931
+      "duration_ms": 2298
     },
     {
       "node": "validate_sql",
@@ -260,18 +260,18 @@
       "update": {
         "queries": [
           {
-            "reason": "The filter check found no courses.code value 'Math201' but found 'MATH201' (different case). Run the same average-grade query with c.code = 'MATH201' to get the average for that course, excluding in-progress NULL grades.",
-            "plan": "The first query matched nothing because the stored code is 'MATH201', not 'Math201'. This query uses the stored value and averages the graded enrollments across all offerings of that course. AVG skips NULL grades, so in-progress enrollments are excluded. The code and title are selected to identify the course.",
-            "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code, c.title;",
+            "reason": "The query for courses.code = 'Math201' returned 0 rows, but the filter check shows the value 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, over all its graded enrollments.",
+            "plan": "The filter value 'Math201' matched nothing, but the course code 'MATH201' exists with different capitalization, so this query assumes that is the intended course. It averages the grade over all graded enrollments across all of its offerings and semesters, ignoring NULL (in-progress) grades, and returns the course id and code to identify the course.",
+            "sql": "SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code",
             "columns": [
+              "id",
               "code",
-              "title",
               "average_grade"
             ],
             "rows": [
               [
+                5,
                 "MATH201",
-                "Linear Algebra",
                 86.0
               ]
             ],
@@ -282,7 +282,7 @@
         "attempts": 0,
         "error": null
       },
-      "duration_ms": 0
+      "duration_ms": 1
     },
     {
       "node": "answer",
@@ -296,19 +296,19 @@
             ],
             [
               "human",
-              "Question: What is the average grade for the course with code 'Math201'?\n\nQuery 1\nReason: Answer the user's question.\nPlan: Average the graded enrollments across all offerings of the course with code 'Math201', joining enrollments to course_offerings and courses. NULL grades (in progress) are excluded by AVG. The course code and title are included to identify the course.\nSQL: SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title;\nResult: 0 rows. The query matched nothing.\nFilter check (the database was asked whether each filter value exists):\n- courses.code = 'Math201': no row has this value, but 'MATH201' exists (different case)\n\nQuery 2\nReason: The filter check found no courses.code value 'Math201' but found 'MATH201' (different case). Run the same average-grade query with c.code = 'MATH201' to get the average for that course, excluding in-progress NULL grades.\nPlan: The first query matched nothing because the stored code is 'MATH201', not 'Math201'. This query uses the stored value and averages the graded enrollments across all offerings of that course. AVG skips NULL grades, so in-progress enrollments are excluded. The code and title are selected to identify the course.\nSQL: SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code, c.title;\nResult: 1 row(s), columns: code, title, average_grade\n[\"MATH201\", \"Linear Algebra\", 86.0]\n\n2 of 3 queries have been used. Choose a status:\n- \"answer\": the results are enough. Write the answer.\n- \"need_query\": the question cannot be answered without another query. Say in `reason` what it must find and why. Ask only when the answer truly depends on it."
+              "Question: What is the average grade for the course with code 'Math201'?\n\nQuery 1\nReason: Answer the user's question.\nPlan: Averages the grade across all graded enrollments for the course with code 'Math201', over all of its offerings and semesters. Enrollments with NULL grades (in progress) are ignored by AVG. The result includes the course id and code to identify the course.\nSQL: SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'Math201' GROUP BY c.id, c.code\nResult: 0 rows. The query matched nothing.\nFilter check (the database was asked whether each filter value exists):\n- courses.code = 'Math201': no row has this value, but 'MATH201' exists (different case)\n\nQuery 2\nReason: The query for courses.code = 'Math201' returned 0 rows, but the filter check shows the value 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, over all its graded enrollments.\nPlan: The filter value 'Math201' matched nothing, but the course code 'MATH201' exists with different capitalization, so this query assumes that is the intended course. It averages the grade over all graded enrollments across all of its offerings and semesters, ignoring NULL (in-progress) grades, and returns the course id and code to identify the course.\nSQL: SELECT c.id, c.code, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code\nResult: 1 row(s), columns: id, code, average_grade\n[5, \"MATH201\", 86.0]\n\n2 of 3 queries have been used. Choose a status:\n- \"answer\": the results are enough. Write the answer.\n- \"need_query\": the question cannot be answered without another query. Say in `reason` what it must find and why. Ask only when the answer truly depends on it."
             ]
           ],
           "output": {
             "status": "answer",
-            "answer": "The average grade for the course MATH201 (Linear Algebra) is 86.0, averaged across its graded enrollments in all offerings. No course with the exact code 'Math201' exists; the stored code is 'MATH201'. In-progress enrollments with NULL grades were excluded.",
+            "answer": "The average grade for course MATH201 (id 5) is 86.0. This is the case-corrected match: the query for 'Math201' found nothing, so it used 'MATH201', and the average covers all graded enrollments across its offerings and semesters, ignoring in-progress enrollments with NULL grades.",
             "reason": null
           },
-          "raw": "{\"status\":\"answer\",\"answer\":\"The average grade for the course MATH201 (Linear Algebra) is 86.0, averaged across its graded enrollments in all offerings. No course with the exact code 'Math201' exists; the stored code is 'MATH201'. In-progress enrollments with NULL grades were excluded.\",\"reason\":null}",
+          "raw": "{\"status\":\"answer\",\"answer\":\"The average grade for course MATH201 (id 5) is 86.0. This is the case-corrected match: the query for 'Math201' found nothing, so it used 'MATH201', and the average covers all graded enrollments across its offerings and semesters, ignoring in-progress enrollments with NULL grades.\",\"reason\":null}",
           "usage": {
-            "input_tokens": 2578,
-            "output_tokens": 112,
-            "total_tokens": 2690,
+            "input_tokens": 2590,
+            "output_tokens": 117,
+            "total_tokens": 2707,
             "input_token_details": {
               "cache_read": 0,
               "cache_creation": 0,
@@ -320,19 +320,30 @@
             }
           },
           "error": null,
-          "duration_ms": 1172
+          "duration_ms": 1317
         }
       ],
       "update": {
         "llm_calls": 4,
         "status": "answered",
-        "answer": "The average grade for the course MATH201 (Linear Algebra) is 86.0, averaged across its graded enrollments in all offerings. No course with the exact code 'Math201' exists; the stored code is 'MATH201'. In-progress enrollments with NULL grades were excluded."
+        "answer": "The average grade for course MATH201 (id 5) is 86.0. This is the case-corrected match: the query for 'Math201' found nothing, so it used 'MATH201', and the average covers all graded enrollments across its offerings and semesters, ignoring in-progress enrollments with NULL grades."
       },
-      "duration_ms": 1172
+      "duration_ms": 1317
+    },
+    {
+      "node": "verify_answer",
+      "llm_calls": [],
+      "update": {
+        "verification": {
+          "checked": 2,
+          "unsupported": []
+        }
+      },
+      "duration_ms": 0
     }
   ],
   "status": "answered",
-  "answer": "The average grade for the course MATH201 (Linear Algebra) is 86.0, averaged across its graded enrollments in all offerings. No course with the exact code 'Math201' exists; the stored code is 'MATH201'. In-progress enrollments with NULL grades were excluded.",
+  "answer": "The average grade for course MATH201 (id 5) is 86.0. This is the case-corrected match: the query for 'Math201' found nothing, so it used 'MATH201', and the average covers all graded enrollments across its offerings and semesters, ignoring in-progress enrollments with NULL grades.",
   "error": null,
-  "duration_ms": 7755
+  "duration_ms": 7941
 }
