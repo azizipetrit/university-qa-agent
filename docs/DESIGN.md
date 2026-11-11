@@ -233,7 +233,7 @@ The live evaluation is not run by default, because it needs a key and costs mone
 | --- | --- | --- | --- |
 | `anthropic:claude-opus-5-5` | Before the "latest semester" line | 13 of 14 | 1 |
 | `anthropic:claude-opus-5-5` | Current | 14 of 14 | 1 |
-| `anthropic:claude-haiku-5-5` (the default) | Current | 14 of 14 | 2 |
+| `anthropic:claude-haiku-5-5` (the default) | Current | 14 of 14 | 3 |
 
 - The one Opus failure was a real misreading of "latest semester". It is written up in
   [EXAMPLES.md](EXAMPLES.md#debugging-a-wrong-answer), and fixed by one line in the schema notes.
@@ -242,6 +242,7 @@ The live evaluation is not run by default, because it needs a key and costs mone
 - Haiku is the default because it passes the same evaluation at a fraction of the cost. The
   evaluation is 14 questions on a six-table schema, so this says the smaller model is enough here,
   not that it would be on a larger or messier database.
+- The third Haiku run was made after one rule was added to the SQL prompt (see Assumptions).
 - These are counts from single runs, and model output varies between runs. Re-run the evaluation
   after changing the model, the prompts or the notes.
 
@@ -314,3 +315,6 @@ Small choices made without discussion, simplest option taken.
 - The answer prompt tells the model to refer to people by name or as "they", because an early run
   wrote "she" for a teacher and the data holds no such information.
 - The README diagram is the unedited output of `draw_mermaid()`.
+- The SQL prompt asks the model to also select the item a figure belongs to when the query has to
+  find that item ("the latest", "the highest"). Without it, Haiku answered "the average is NULL"
+  for the latest semester without being able to say which semester that was.
