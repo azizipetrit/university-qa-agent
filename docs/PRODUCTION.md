@@ -9,7 +9,7 @@ production, and what to do first, for each of the five topics in the assignment.
 
 - Rejected SQL is repaired, with limits on attempts, queries and model calls, so a run always ends.
 - A run that fails says so, with the last error. A run that crashes still writes its trace.
-- 126 offline tests, and a 15-question live evaluation that caught a real wrong answer (see
+- 169 offline tests, and a 16-question live evaluation that caught a real wrong answer (see
   [EXAMPLES.md](EXAMPLES.md#debugging-a-wrong-answer)).
 
 **Missing**
@@ -92,6 +92,10 @@ production, and what to do first, for each of the five topics in the assignment.
   as example 3 in [EXAMPLES.md](EXAMPLES.md) shows), hide sensitive tables and columns from
   introspection, and check the provider's data retention terms. Query results still go to the
   model, so column-level restrictions belong in the database role.
+- **Values shown by the filter check.** When a query returns nothing, the agent tells the model
+  which values a filtered column holds, if that is a short list (at most `FILTER_VALUE_LIMIT`
+  distinct values), or the real spelling of a wrongly cased value. Columns with many distinct
+  values, such as names or emails, are never listed. Set `FILTER_VALUE_LIMIT=0` to send none.
 - **Per-user access.** Every user currently sees everything the database user can see. Real use
   needs the user's identity passed through, with row-level security or per-role views in the
   database.

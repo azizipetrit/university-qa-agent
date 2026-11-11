@@ -110,14 +110,15 @@ everywhere. The connection-level switch is only implemented for SQLite.
 
 ## The agent (`src/sqlqa/graph.py`, `nodes.py`)
 
-An explicit LangGraph `StateGraph` with six nodes. Two call the model; four are plain code.
+An explicit LangGraph `StateGraph` with seven nodes. Two call the model; five are plain code.
 
 ```text
-load_schema -> generate_sql -> validate_sql -> execute_sql -> answer -> END
-                    ^               |               |            |
-                    +---------------+---------------+------------+
-                     guard rejects    database        answer asks for
-                     the SQL          rejects it      another query
+load_schema -> generate_sql -> validate_sql -> execute_sql -----------------> answer -> END
+                    ^               |               |    \                  ^   |
+                    |               |               |     +-> check_filters -+   |
+                    +---------------+---------------+----------------------------+
+                     guard rejects    database        (only when the result      answer asks for
+                     the SQL          rejects it       is empty)                 another query
 ```
 
 | Node | Model? | What it does |
@@ -126,6 +127,7 @@ load_schema -> generate_sql -> validate_sql -> execute_sql -> answer -> END
 | `generate_sql` | yes | Returns SQL with a short plan, or a clarifying question, or "cannot answer". |
 | `validate_sql` | no | Runs the SQL guard. |
 | `execute_sql` | no | Runs the query read-only and records the result. |
+| `check_filters` | no | Only after an empty result: asks the database whether the query's filter values exist. |
 | `answer` | yes | Returns the answer, or asks for one more query and says why. |
 | `give_up` | no | Ends the run with an honest failure message when a limit is hit. |
 
@@ -157,26 +159,83 @@ Most questions need one query, because SQL can already express several steps wit
 subqueries. The loop is for questions where the second query depends on what the first one
 returned. Each query is stored with the reason it was run, and both appear in the trace.
 
-How often the real model uses it: rarely. Six compound questions were tried on default settings
-with `anthropic:claude-haiku-5-5`. Five were answered correctly with a single query, including
-"which student improved most on a retake, and what are they taking now". One, an open-ended
-"is anything unusual about the grades, then dig into what stands out", used a second query on its
-own. That run is example 10 in [EXAMPLES.md](EXAMPLES.md) and is now a golden question. So the
-loop is a safety net for open questions and distrusted empty results, not the normal path.
+How often the real model uses it: rarely for compound questions. Six were tried on default
+settings with `anthropic:claude-haiku-5-5`. Five were answered correctly with a single query,
+including "which student improved most on a retake, and what are they taking now". One open-ended
+question used a second query in about half of its runs, which was too unreliable to keep as an
+example or a golden question.
 
-Even that question does not always use it. Across four runs of it, two used a second query and
-two answered with one. The golden question checks the values fetched, not the number of queries.
+The dependable case is a corrected filter. When a query returns nothing and the filter check
+shows that the value exists in another form, `answer` asks for a second query with the real
+value. Example 12 in [EXAMPLES.md](EXAMPLES.md) is such a run on default settings, and it is a
+golden question.
 
-### Empty and NULL results
+### Empty results: evidence, not a guess (`src/sqlqa/filter_check.py`)
 
-There is no separate review step. `answer` runs after every query and its prompt states plainly
-when a result has 0 rows or only NULLs. It then either answers ("nothing matches", "not graded
-yet") or asks for a corrected query, for example when a filter value was written differently from
-the data. A corrected query counts as one of the three queries.
+An empty result has two very different causes. Either the data really has no such rows, or the
+query asked for a value the column does not hold: a term that does not exist, or a code written
+in a different case. From the result alone the two look the same.
+
+**What was tried first, and why it was not enough.** The answer prompt used to say "judge whether
+nothing matches is the true answer or the query was probably wrong". The model then guessed. In
+repeated runs of one question it sometimes asked for a second query and sometimes did not, and a
+stronger prompt rule only moved the odds. A prompt cannot make this dependable, because the model
+has no evidence to judge with.
+
+**What it does now.** When a result has 0 rows or only NULLs, `check_filters` runs before
+`answer`. It makes no model call.
+
+1. It reads the simple literal comparisons out of the SQL with sqlglot: `column = value`,
+   `column IN (...)`, `column LIKE pattern`, each also with `LOWER()` or `UPPER()` around the
+   column.
+2. For each one it asks the database whether any row in that table has that value.
+3. If none has, it reports the same value in a different case if there is one. Otherwise it lists
+   the values the column holds, when that is a short list.
+
+The finding is stored on the query, shown to `answer` under the result, and written to the trace.
+`answer` is told to rely on it:
+
+| The check says | `answer` does |
+| --- | --- |
+| A value does not exist | Says so and names the values that do. No further query is needed. |
+| The value exists in another form, such as a different case | Asks for a second query with the real value. |
+| Every checked value exists | Treats the empty result as real: nothing matches that combination. |
+
+**Why "only NULLs" counts as empty.** An aggregate over no matching rows returns one row holding
+NULL, not zero rows. `AVG(grade)` for a course code that does not exist comes back as a single
+NULL, which reads exactly like "not graded yet". A row such as `Fall 2026, NULL` is not empty in
+this sense, because the query did find the semester.
+
+**How it stays safe and database-agnostic.**
+
+- Probes are built with SQLAlchemy Core and bound parameters. No text from the model's query is
+  executed again, so the trade-off above about running only the model's own SQL still holds, and
+  a quote inside a value is just a character.
+- Table and column names come from the introspected schema. Nothing is specific to one database.
+- A comparison is checked only if its column resolves to exactly one real table. Anything else is
+  skipped and counted, and the count is shown: ranges, negations, expressions, columns of a CTE,
+  an unqualified column that two tables share.
+- At most `MAX_FILTER_PROBES` (5) comparisons are checked per query.
+
+**What it reveals, and the switch for it.** Values listed by the check are sent to the model
+provider, like sample rows. Three rules limit that, controlled by `FILTER_VALUE_LIMIT` (10):
+
+- a wrongly cased value gets only its one real spelling;
+- other values are listed only if the column has at most 10 distinct values, so a column of names
+  or emails is never listed;
+- set to 0, no values are shown at all: the finding says only found or not found.
+
+**What it costs.** Nothing on a normal run. On an empty result, a few small queries and no model
+call. A wrongly cased value still costs a second query, which counts as one of the three.
+
+**What it does not do.** It checks each value on its own, not the combination. If every value
+exists and the result is still empty, it cannot say whether the rows matched and hold NULLs or
+the combination matched nothing. Telling those apart would need a rewritten `COUNT(*)` version of
+the model's query, which means executing SQL that sqlglot generated.
 
 ### Ambiguous questions
 
-- If the question cannot be mapped to the schema without guessing ("who is the best?"),
+- If the question cannot be mapped to the schema without guessing ("how did they do?"),
   `generate_sql` ends the run with one clarifying question.
 - If a reasonable reading exists, the model takes it and states the assumption in its plan, and
   the answer repeats it.
@@ -226,14 +285,16 @@ well, because LangGraph and langchain report to it on their own.
 
 Two kinds of test answer two different questions.
 
-- **Does the code do what it should?** 126 offline tests. The model is replaced by a scripted
+- **Does the code do what it should?** 169 offline tests. The model is replaced by a scripted
   stand-in (`tests/fakes.py`) that returns prepared replies in order and records every prompt. The
   database, the guard, the graph and the tracer are all real. These tests are exact and free, and
   they cannot say anything about the quality of a real model's SQL.
-- **Does the real model answer correctly?** 15 golden questions in
+- **Does the real model answer correctly?** 16 golden questions in
   `university/golden_questions.json`, run with `uv run pytest -m live`. Each lists the values a
   correct run must have fetched (for example `73.75`), and the expected status. Whole result sets
-  are not compared, because a correct query that selects one extra column would fail.
+  are not compared, because a correct query that selects one extra column would fail. Two of
+  them name a value that is not in the data (a course code that does not exist, and one written in
+  the wrong case); for those the run must also contain a filter check that reported it.
 
 The live evaluation is not run by default, because it needs a key and costs money.
 
@@ -245,6 +306,8 @@ The live evaluation is not run by default, because it needs a key and costs mone
 | `anthropic:claude-opus-5-5` | Current | 14 of 14 | 1 |
 | `anthropic:claude-haiku-5-5` (the default) | Current | 14 of 14 | 3 |
 | `anthropic:claude-haiku-5-5` (the default) | Current, with the open-ended question added | 15 of 15 | 1 |
+| `anthropic:claude-haiku-5-5` (the default) | Current, with `check_filters` and two more questions | 16 of 17, then 17 of 17 | 2 |
+| `anthropic:claude-haiku-5-5` (the default) | Current, after the two question changes below | 16 of 16 | 1 |
 
 - The one Opus failure was a real misreading of "latest semester". It is written up in
   [EXAMPLES.md](EXAMPLES.md#debugging-a-wrong-answer), and fixed by one line in the schema notes.
@@ -254,6 +317,15 @@ The live evaluation is not run by default, because it needs a key and costs mone
   evaluation is 14 questions on a six-table schema, so this says the smaller model is enough here,
   not that it would be on a larger or messier database.
 - The third Haiku run was made after one rule was added to the SQL prompt (see Assumptions).
+- The 16 of 17 run failed on an open-ended question ("is anything unusual about the grades?").
+  The answer was correct, but it derived the number of ungraded enrollments instead of selecting
+  it, and the check only sees selected values. That question was then removed: it was the least
+  reliable thing in the evaluation and measured the check more than the agent.
+- The clarification question was changed from "Who is the best?" to "How did they do?". The first
+  has a reasonable reading (highest average grade), so the prompt allows the model to answer it
+  with a stated assumption, and on Haiku it did so in two runs out of five. The second has no
+  reasonable reading and got a clarifying question in five runs out of five.
+- The two `check_filters` questions passed in every run made of them.
 - These are counts from single runs, and model output varies between runs. Re-run the evaluation
   after changing the model, the prompts or the notes.
 
@@ -265,14 +337,17 @@ The live evaluation is not run by default, because it needs a key and costs mone
 - **The guard checks tables, not columns or functions.** A wrong column costs one repair attempt.
 - **The answer is not verified against the rows.** The answer prompt forbids invented values, and
   the trace lets a person check, but no code does.
-- **A NULL from an aggregate over no rows looks like missing data.** `AVG` over zero matching rows
-  returns one row holding NULL, not zero rows. The answer step can take that for "not graded yet"
-  when the real cause is a filter that matched nothing. Example 3 in
-  [EXAMPLES.md](EXAMPLES.md) shows it: the answer names both possible causes but does not run a
-  second query to tell them apart.
-- **The open-ended golden question is loosely checked.** It passes if the run fetched the total
-  number of ungraded enrollments or the number in the latest semester. A different but reasonable
-  exploration could fail it.
+- **The filter check covers simple comparisons only.** It reads `=`, `IN` and `LIKE` against a
+  literal. A filter written another way (a range, a function other than `LOWER` or `UPPER`, a
+  value computed in a subquery) is skipped, and the answer step is back to judging without
+  evidence for that part.
+- **The filter check does not test combinations.** See "What it does not do" above.
+- **Whether a question is clarified or assumed is the model's call.** The prompt tells it to ask
+  only when no reasonable reading exists. For a question on the border, such as "Who is the
+  best?", Haiku asked in three runs out of five and assumed in two.
+- **A gendered pronoun occasionally slips through.** The data does not record gender, and the
+  answer prompt says to use a name or "they". It holds in the committed examples and nearly every
+  run, but one test run on Haiku wrote "his course offerings" for a teacher. No code checks it.
 - **No conversation memory.** Each question stands alone.
 - **The live evaluation is small** and tied to the demo database. It shows the method more than it
   measures quality.
@@ -337,3 +412,11 @@ Small choices made without discussion, simplest option taken.
 - The SQL prompt asks the model to also select the item a figure belongs to when the query has to
   find that item ("the latest", "the highest"). Without it, Haiku answered "the average is NULL"
   for the latest semester without being able to say which semester that was.
+- An empty result is held in the state as `pending` and recorded in `queries` by `check_filters`,
+  together with its finding. That keeps `queries` append-only: every query appears once in the
+  trace, in the step that recorded it.
+- An unqualified column in a filter is resolved against every real table the statement reads, not
+  only the tables in the same subquery. If more than one has it, the comparison is skipped.
+- Each value of an `IN` list is checked as its own comparison and counts towards the probe cap.
+- The filter check does not run on a result that has at least one non-NULL value.
+- `Database.execute` accepts SQL text or a SQLAlchemy Core statement; the probes use the latter.

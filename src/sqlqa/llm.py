@@ -59,9 +59,24 @@ def call_llm(llm, schema: type[BaseModel], messages: list[tuple[str, str]], trac
         schema=schema.__name__,
         messages=[list(message) for message in messages],
         output=parsed.model_dump() if parsed else None,
-        raw=getattr(raw, "content", None),
+        raw=_without_signatures(getattr(raw, "content", None)),
         usage=getattr(raw, "usage_metadata", None),
         error=str(error) if error else None,
         duration_ms=round((time.perf_counter() - started) * 1000),
     )
     return parsed
+
+
+def _without_signatures(content):
+    """Drop the long opaque `signature` some providers attach to reasoning blocks.
+
+    It is only meaningful to the provider and makes traces hard to read.
+    """
+    if not isinstance(content, list):
+        return content
+    return [
+        {key: value for key, value in block.items() if key != "signature"}
+        if isinstance(block, dict)
+        else block
+        for block in content
+    ]

@@ -10,6 +10,8 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from sqlqa.prompts import format_filter_check
+
 ROWS_SHOWN = 10  # rows per result table in the Markdown view
 SCHEMA_PLACEHOLDER = "[schema: shown once above]"
 
@@ -158,7 +160,9 @@ def _render_update(update: dict) -> list[str]:
             out += ["- `sql`:", "", _code(value, "sql"), ""]
         elif key == "queries":
             for query in value:
-                out += _render_query(query)
+                out += _render_query(query, "one query recorded")
+        elif key == "pending" and value:
+            out += _render_query(value, "empty result, held for check_filters", key)
         elif key == "answer":
             out += ["- `answer`:", "", _quote(value), ""]
         else:
@@ -166,10 +170,10 @@ def _render_update(update: dict) -> list[str]:
     return out + [""]
 
 
-def _render_query(query: dict) -> list[str]:
+def _render_query(query: dict, label: str, key: str = "queries") -> list[str]:
     rows, columns = query["rows"], query["columns"]
     out = [
-        "- `queries`: one query recorded",
+        f"- `{key}`: {label}",
         f"  - reason: {query['reason']}",
         f"  - plan: {query['plan']}",
         f"  - result: {len(rows)} row(s)"
@@ -186,6 +190,9 @@ def _render_query(query: dict) -> list[str]:
         if len(rows) > ROWS_SHOWN:
             out += ["", f"({len(rows) - ROWS_SHOWN} more rows in the JSON trace)"]
         out.append("")
+    check = format_filter_check(query.get("filter_check"))
+    if check:
+        out += [*check, ""]
     return out
 
 

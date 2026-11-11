@@ -7,6 +7,9 @@ Not run by default. It needs the settings in .env and costs a few cents:
 Each golden question lists the values that a correct run must have fetched from the
 database. Comparing whole result sets would fail correct queries that merely select
 an extra column, so only the key values are checked.
+
+A question marked "missing_filter" names a value that is not in the database. For those,
+the run must also contain a filter check that reported the value as not found.
 """
 
 import json
@@ -67,3 +70,14 @@ def test_golden_question(case, live):
     cells = [value for query in state["queries"] for row in query["rows"] for value in row]
     missing = [expected for expected in case["expect"] if not found(expected, cells)]
     assert not missing, f"values not found in any query result: {missing}" + where
+
+    if case.get("missing_filter"):
+        # The question names a value that does not exist; check_filters must have said so.
+        checks = [
+            item
+            for query in state["queries"]
+            for item in (query["filter_check"] or {}).get("checked", [])
+        ]
+        assert any(item["found"] is False for item in checks), (
+            "check_filters did not report a missing value" + where
+        )

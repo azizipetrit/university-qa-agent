@@ -52,6 +52,14 @@ class Database:
         inspector = inspect(self.engine)
         return sorted(inspector.get_table_names() + inspector.get_view_names())
 
+    def table_columns(self) -> dict[str, list[str]]:
+        """Column names for every table and view."""
+        inspector = inspect(self.engine)
+        return {
+            name: [column["name"] for column in inspector.get_columns(name)]
+            for name in self.table_names()
+        }
+
     def describe_schema(self) -> str:
         """The schema as text for the LLM: columns, keys, sample rows, optional notes."""
         inspector = inspect(self.engine)
@@ -87,10 +95,13 @@ class Database:
             parts.append("Notes:\n" + self.notes_file.read_text(encoding="utf-8").strip())
         return "\n\n".join(parts)
 
-    def execute(self, sql: str) -> QueryResult:
-        """Run SQL text exactly as given. Database errors are returned, not raised."""
+    def execute(self, statement) -> QueryResult:
+        """Run SQL text exactly as given, or a statement built with SQLAlchemy Core.
+
+        Database errors are returned, not raised.
+        """
         try:
-            return self._run(sql)
+            return self._run(statement)
         except SQLAlchemyError as exc:
             # exc.orig is the driver's own message, without SQLAlchemy's wrapping.
             return QueryResult(columns=[], rows=[], error=str(getattr(exc, "orig", None) or exc))

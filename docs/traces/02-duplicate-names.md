@@ -1,4 +1,4 @@
-# Trace 20261111-225430-106cdc
+# Trace 20261111-235116-34075a
 
 **Question:** What is Daniel Kim's average grade?
 
@@ -6,11 +6,11 @@
 
 **Answer:**
 
-> There are two students named Daniel Kim, told apart by email. Daniel Kim (id 4, daniel.kim@uni.example) has an average grade of 62.5. Daniel Kim (id 6, daniel.kim2@uni.example) has an average grade of about 91.33. Each average uses only graded enrollments; in-progress enrollments with no grade yet are excluded.
+> There are two students named Daniel Kim, so each has their own average. Daniel Kim (daniel.kim@uni.example, id 4) has an average grade of 62.5. Daniel Kim (daniel.kim2@uni.example, id 6) has an average grade of about 91.33. The averages use only graded enrollments; in-progress enrollments with no grade yet are excluded.
 
 | Model | Model calls | Queries run | Tokens in / out | Duration |
 |---|---|---|---|---|
-| anthropic:claude-haiku-5-5 | 2 | 1 | 4082 / 673 | 5.3 s |
+| anthropic:claude-haiku-5-5 | 2 | 1 | 4213 / 604 | 4.7 s |
 
 ## Path
 
@@ -102,9 +102,9 @@ Notes:
 - `dialect`: "sqlite"
 
 
-### 2. generate_sql (3.4 s)
+### 2. generate_sql (3.1 s)
 
-**Model call** (SqlDecision, 1963 tokens in, 530 out, 3.4 s)
+**Model call** (SqlDecision, 1963 tokens in, 461 out, 3.1 s)
 
 *Prompt, system:*
 
@@ -140,7 +140,7 @@ Question: What is Daniel Kim's average grade?
 ```json
 {
   "status": "sql",
-  "plan": "Average the graded enrollments for students named Daniel Kim, grouped by student id and email because names are not unique. In-progress enrollments with NULL grades are ignored by AVG, and each student's average is shown separately.",
+  "plan": "Averages the non-NULL grades of all enrollments for students named Daniel Kim, grouped by student id and email because names are not unique, so each person with that name gets their own average. In-progress enrollments (NULL grade) are excluded automatically by AVG.",
   "sql": "SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' GROUP BY s.id, s.name, s.email",
   "message": null
 }
@@ -157,7 +157,7 @@ SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN
 ```
 
 - `error`: null
-- `plan`: "Average the graded enrollments for students named Daniel Kim, grouped by student id and email because names are not unique. In-progress enrollments with NULL grades are ignored by AVG, and each student's average is shown separately."
+- `plan`: "Averages the non-NULL grades of all enrollments for students named Daniel Kim, grouped by student id and email because names are not unique, so each person with that name gets their own average. In-progress enrollments (NULL grade) are excluded automatically by AVG."
 
 
 ### 3. validate_sql (1 ms)
@@ -173,7 +173,7 @@ SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN
 
 - `queries`: one query recorded
   - reason: Answer the user's question.
-  - plan: Average the graded enrollments for students named Daniel Kim, grouped by student id and email because names are not unique. In-progress enrollments with NULL grades are ignored by AVG, and each student's average is shown separately.
+  - plan: Averages the non-NULL grades of all enrollments for students named Daniel Kim, grouped by student id and email because names are not unique, so each person with that name gets their own average. In-progress enrollments (NULL grade) are excluded automatically by AVG.
   - result: 2 row(s)
 
 ```sql
@@ -189,9 +189,9 @@ SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN
 - `error`: null
 
 
-### 5. answer (1.8 s)
+### 5. answer (1.6 s)
 
-**Model call** (AnswerDecision, 2119 tokens in, 143 out, 1.8 s)
+**Model call** (AnswerDecision, 2250 tokens in, 143 out, 1.6 s)
 
 *Prompt, system:*
 
@@ -205,7 +205,10 @@ Rules for the answer:
 - If a query made an assumption (see its plan), say so.
 - If the results contain several different entities matching one name, report each one separately, told apart by a unique column.
 - If a result is NULL, the value is not available. Say that, and why if the schema notes explain it. Do not report it as zero.
-- If a result has 0 rows, judge whether "nothing matches" is the true answer or the query was probably wrong, for example a filter value written differently from the data.
+- A result with 0 rows or only NULLs is followed by a filter check: the database was asked whether each filter value in the query exists. Rely on it, do not guess.
+  - If it says a value does not exist, the query asked for something the data does not have. Say so, and mention the existing values it lists.
+  - If it shows the value exists in another form (for example a different case), or one of the listed values is clearly what the user meant, ask for another query that uses that value.
+  - If every checked value was found, the empty result is real: nothing matches that combination.
 - If a result is marked truncated, say that only the first rows are shown.
 
 Schema:
@@ -219,7 +222,7 @@ Question: What is Daniel Kim's average grade?
 
 Query 1
 Reason: Answer the user's question.
-Plan: Average the graded enrollments for students named Daniel Kim, grouped by student id and email because names are not unique. In-progress enrollments with NULL grades are ignored by AVG, and each student's average is shown separately.
+Plan: Averages the non-NULL grades of all enrollments for students named Daniel Kim, grouped by student id and email because names are not unique, so each person with that name gets their own average. In-progress enrollments (NULL grade) are excluded automatically by AVG.
 SQL: SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' GROUP BY s.id, s.name, s.email
 Result: 2 row(s), columns: id, name, email, average_grade
 [4, "Daniel Kim", "daniel.kim@uni.example", 62.5]
@@ -235,7 +238,7 @@ Result: 2 row(s), columns: id, name, email, average_grade
 ```json
 {
   "status": "answer",
-  "answer": "There are two students named Daniel Kim, told apart by email. Daniel Kim (id 4, daniel.kim@uni.example) has an average grade of 62.5. Daniel Kim (id 6, daniel.kim2@uni.example) has an average grade of about 91.33. Each average uses only graded enrollments; in-progress enrollments with no grade yet are excluded.",
+  "answer": "There are two students named Daniel Kim, so each has their own average. Daniel Kim (daniel.kim@uni.example, id 4) has an average grade of 62.5. Daniel Kim (daniel.kim2@uni.example, id 6) has an average grade of about 91.33. The averages use only graded enrollments; in-progress enrollments with no grade yet are excluded.",
   "reason": null
 }
 ```
@@ -246,4 +249,4 @@ Result: 2 row(s), columns: id, name, email, average_grade
 - `status`: "answered"
 - `answer`:
 
-> There are two students named Daniel Kim, told apart by email. Daniel Kim (id 4, daniel.kim@uni.example) has an average grade of 62.5. Daniel Kim (id 6, daniel.kim2@uni.example) has an average grade of about 91.33. Each average uses only graded enrollments; in-progress enrollments with no grade yet are excluded.
+> There are two students named Daniel Kim, so each has their own average. Daniel Kim (daniel.kim@uni.example, id 4) has an average grade of 62.5. Daniel Kim (daniel.kim2@uni.example, id 6) has an average grade of about 91.33. The averages use only graded enrollments; in-progress enrollments with no grade yet are excluded.

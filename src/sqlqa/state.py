@@ -13,6 +13,7 @@ class Query(TypedDict):
     columns: list[str]
     rows: list[list]
     truncated: bool
+    filter_check: dict | None  # set by check_filters when the result was empty
 
 
 class State(TypedDict, total=False):
@@ -29,6 +30,7 @@ class State(TypedDict, total=False):
     sql: str | None
     error: str | None  # why the last attempt failed; sent back to the model
     attempts: int  # attempts at the current query
+    pending: Query | None  # an empty result, held until check_filters has looked at it
 
     # the whole run
     queries: Annotated[list[Query], operator.add]  # nodes append; LangGraph concatenates
@@ -39,6 +41,11 @@ class State(TypedDict, total=False):
     answer: str
 
 
+def is_empty(rows: list[list]) -> bool:
+    """No rows, or nothing but NULLs (an aggregate over no rows returns one NULL row)."""
+    return all(value is None for row in rows for value in row)
+
+
 def initial_state(question: str) -> State:
     return {
         "question": question,
@@ -46,6 +53,7 @@ def initial_state(question: str) -> State:
         "sql": None,
         "error": None,
         "attempts": 0,
+        "pending": None,
         "queries": [],
         "llm_calls": 0,
     }
