@@ -6,10 +6,11 @@ from fakes import MALFORMED, FakeLLM, answer, ask, clarify, final, need_query, s
 from sqlqa.config import Settings
 from sqlqa.graph import build_graph, run
 from sqlqa.llm import AnswerDecision, FinalAnswer
-from sqlqa.tracing import Tracer
+from sqlqa.tracing import Tracer, render_markdown
 
 HAPPY_PATH = ["load_schema", "generate_sql", "validate_sql", "execute_sql", "answer"]
 ONE_QUERY = ["generate_sql", "validate_sql", "execute_sql", "answer"]
+CHECKED_QUERY = ["generate_sql", "validate_sql", "execute_sql", "check_filters", "answer"]
 
 AVG_CS101 = """
     SELECT AVG(e.grade) AS average
@@ -137,9 +138,9 @@ def test_empty_result_can_be_the_answer_with_no_extra_model_call(db, tmp_path):
         ),
         answer("None yet. Fall 2026 is still in progress."),
     )
-    assert run.path == HAPPY_PATH
+    assert run.path == ["load_schema", *CHECKED_QUERY]
     assert run.state["queries"][0]["rows"] == []
-    assert run.state["llm_calls"] == 2
+    assert run.state["llm_calls"] == 2  # check_filters does not call the model
 
 
 def test_empty_result_from_a_wrong_filter_is_corrected_with_a_second_query(db, tmp_path):
@@ -158,7 +159,7 @@ def test_empty_result_from_a_wrong_filter_is_corrected_with_a_second_query(db, t
         ),
         answer("Three."),
     )
-    assert run.path == ["load_schema", *ONE_QUERY, *ONE_QUERY]
+    assert run.path == ["load_schema", *CHECKED_QUERY, *ONE_QUERY]
     assert [q["rows"] for q in run.state["queries"]] == [[], [[3]]]
     assert run.state["queries"][1]["reason"].startswith("0 rows:")
 
@@ -175,6 +176,159 @@ def test_all_null_result_reaches_the_answer_node_as_null_not_zero(db, tmp_path):
         answer("There is no average yet: no Fall 2026 enrollment has been graded."),
     )
     assert run.state["queries"][0]["rows"] == [[None]]
+
+
+# --- check_filters: evidence for empty results ---------------------------------
+
+
+def test_check_filters_runs_only_when_the_result_is_empty(db, tmp_path):
+    full = ask(db, tmp_path, "q", sql("SELECT name FROM teachers"), answer("Four."))
+    assert "check_filters" not in full.path
+    assert full.state["queries"][0]["filter_check"] is None
+
+    empty = ask(
+        db, tmp_path, "q", sql("SELECT name FROM teachers WHERE name = 'Nobody'"), answer("None.")
+    )
+    assert empty.path == ["load_schema", *CHECKED_QUERY]
+
+
+def test_missing_value_is_reported_with_the_values_that_exist(db, tmp_path):
+    """Case 1: the query asks for a value the column does not hold."""
+    run = ask(
+        db,
+        tmp_path,
+        "How many offerings were there in the winter term?",
+        sql(
+            "SELECT o.id FROM course_offerings o JOIN semesters s ON s.id = o.semester_id "
+            "WHERE s.term = 'Winter'"
+        ),
+        answer("There is no winter term. The terms are Fall and Spring."),
+    )
+    finding = run.state["queries"][0]["filter_check"]
+    assert finding == {
+        "checked": [
+            {
+                "filter": "semesters.term = 'Winter'",
+                "found": False,
+                "detail": "no row has this value; the column holds only: 'Fall', 'Spring'",
+            }
+        ],
+        "not_checked": 0,
+    }
+    # The answer step is shown the finding, word for word.
+    prompt = run.llm.calls[1]["human"]
+    assert "Result: 0 rows. The query matched nothing." in prompt
+    assert "- semesters.term = 'Winter': no row has this value; the column holds only:" in prompt
+
+
+def test_wrongly_cased_value_is_reported_with_the_real_spelling(db, tmp_path):
+    """Case 2: the value exists, written differently. The second query uses the real one."""
+    run = ask(
+        db,
+        tmp_path,
+        "What is the average grade in math201?",
+        sql(
+            "SELECT AVG(e.grade) FROM enrollments e "
+            "JOIN course_offerings o ON o.id = e.offering_id "
+            "JOIN courses c ON c.id = o.course_id WHERE c.code = 'math201'"
+        ),
+        need_query("The check shows the code is written 'MATH201'."),
+        sql(
+            "SELECT AVG(e.grade) FROM enrollments e "
+            "JOIN course_offerings o ON o.id = e.offering_id "
+            "JOIN courses c ON c.id = o.course_id WHERE c.code = 'MATH201'"
+        ),
+        answer("86.0."),
+    )
+    first, second = run.state["queries"]
+    assert first["rows"] == [[None]]  # an aggregate over no rows: one row of NULL, not 0 rows
+    assert first["filter_check"]["checked"] == [
+        {
+            "filter": "courses.code = 'math201'",
+            "found": False,
+            "detail": "no row has this value, but 'MATH201' exists (different case)",
+        }
+    ]
+    assert "but 'MATH201' exists (different case)" in run.llm.calls[1]["human"]
+    assert second["rows"] == [[86.0]]
+    assert second["filter_check"] is None
+    assert run.path == ["load_schema", *CHECKED_QUERY, *ONE_QUERY]
+
+
+def test_real_empty_result_is_confirmed_when_every_value_exists(db, tmp_path):
+    run = ask(
+        db,
+        tmp_path,
+        "Which grades are recorded for Fall 2026?",
+        sql(
+            "SELECT e.grade FROM enrollments e "
+            "JOIN course_offerings o ON o.id = e.offering_id "
+            "JOIN semesters s ON s.id = o.semester_id "
+            "WHERE s.name = 'Fall 2026' AND e.grade IS NOT NULL"
+        ),
+        answer("None yet."),
+    )
+    assert run.state["queries"][0]["filter_check"] == {
+        "checked": [{"filter": "semesters.name = 'Fall 2026'", "found": True, "detail": "found"}],
+        "not_checked": 0,
+    }
+
+
+def test_finding_is_in_the_trace_and_the_markdown_view(db, tmp_path):
+    run = ask(
+        db, tmp_path, "q", sql("SELECT id FROM semesters WHERE term = 'Winter'"), answer("None.")
+    )
+    execute, check = run.trace["steps"][3], run.trace["steps"][4]
+    assert execute["node"] == "execute_sql"
+    assert execute["update"]["pending"]["rows"] == []  # held back, not recorded yet
+    assert "queries" not in execute["update"]
+    assert check["node"] == "check_filters"
+    assert check["llm_calls"] == []
+    assert check["update"]["queries"][0]["filter_check"]["checked"][0]["found"] is False
+    assert check["update"]["pending"] is None
+
+    markdown = render_markdown(run.trace)
+    assert "### 5. check_filters" in markdown
+    assert "- semesters.term = 'Winter': no row has this value; the column holds only:" in markdown
+
+
+def test_value_listing_can_be_switched_off(db, tmp_path):
+    run = ask(
+        db,
+        tmp_path,
+        "q",
+        sql("SELECT id FROM semesters WHERE term = 'Winter'"),
+        answer("None."),
+        filter_value_limit=0,
+    )
+    (item,) = run.state["queries"][0]["filter_check"]["checked"]
+    assert item == {
+        "filter": "semesters.term = 'Winter'",
+        "found": False,
+        "detail": "no row has this value",
+    }
+    assert "Fall" not in run.llm.calls[1]["human"].split("Filter check")[1]
+
+
+def test_check_filters_respects_the_model_call_limit(db, tmp_path):
+    run = ask(
+        db, tmp_path, "q", sql("SELECT id FROM semesters WHERE term = 'Winter'"), max_llm_calls=1
+    )
+    assert run.path[-2:] == ["check_filters", "give_up"]
+    assert run.state["queries"][0]["filter_check"] is not None
+
+
+def test_same_check_works_on_an_unrelated_database(bookstore_db, tmp_path):
+    run = ask(
+        bookstore_db,
+        tmp_path,
+        "q",
+        sql("SELECT title FROM books b JOIN authors a ON a.id = b.author_id WHERE a.name = 'x'"),
+        answer("No such author."),
+    )
+    (item,) = run.state["queries"][0]["filter_check"]["checked"]
+    assert item["filter"] == "authors.name = 'x'"
+    assert item["detail"].endswith("the column holds only: 'Ursula Le Guin', 'Italo Calvino'")
 
 
 # --- multi-step loop ---------------------------------------------------------
@@ -313,6 +467,7 @@ def test_graph_has_exactly_the_documented_nodes(db, tmp_path):
         "generate_sql",
         "validate_sql",
         "execute_sql",
+        "check_filters",
         "answer",
         "give_up",
     }

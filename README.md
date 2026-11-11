@@ -39,6 +39,7 @@ graph TD;
     generate_sql(generate_sql)
     validate_sql(validate_sql)
     execute_sql(execute_sql)
+    check_filters(check_filters)
     answer(answer)
     give_up(give_up)
     __end__([<p>__end__</p>]):::last
@@ -46,7 +47,10 @@ graph TD;
     answer -.-> __end__;
     answer -.-> generate_sql;
     answer -.-> give_up;
+    check_filters -.-> answer;
+    check_filters -.-> give_up;
     execute_sql -.-> answer;
+    execute_sql -.-> check_filters;
     execute_sql -.-> generate_sql;
     execute_sql -.-> give_up;
     generate_sql -.-> __end__;
@@ -71,11 +75,14 @@ This diagram is the output of LangGraph's `draw_mermaid()` on the compiled graph
 | `generate_sql` | yes | Writes one SELECT with a short plan, or asks a clarifying question, or says the database cannot answer. |
 | `validate_sql` | no | Rejects anything that is not a single read-only SELECT over known tables. |
 | `execute_sql` | no | Runs the query on a read-only connection with a row limit. |
+| `check_filters` | no | Only after an empty result: asks the database whether the query's filter values exist, and which values do. |
 | `answer` | yes | Writes the answer from the rows, or asks for one more query and says why. |
 | `give_up` | no | Ends with an honest failure message when a limit is reached. |
 
 The straight path is `load_schema → generate_sql → validate_sql → execute_sql → answer`, which
-costs two model calls. Three things send a run back to `generate_sql`, each with its own limit:
+costs two model calls. When a query returns nothing, `check_filters` runs before `answer` and
+gives it evidence: whether each filter value exists, and if not, what does. It makes no model
+call. Three things send a run back to `generate_sql`, each with its own limit:
 
 | Loop | Trigger | Limit |
 | --- | --- | --- |
@@ -93,8 +100,8 @@ The reasoning behind each choice is in [docs/DESIGN.md](docs/DESIGN.md).
 | LangGraph agent | [`src/sqlqa/graph.py`](src/sqlqa/graph.py), [`src/sqlqa/nodes.py`](src/sqlqa/nodes.py), [`src/sqlqa/prompts.py`](src/sqlqa/prompts.py) |
 | Database-agnostic design | [`src/sqlqa/db.py`](src/sqlqa/db.py) introspects the schema; everything university-specific is in [`university/`](university/) |
 | Tracing | [`src/sqlqa/tracing.py`](src/sqlqa/tracing.py), example traces in [`docs/traces/`](docs/traces/) |
-| Debugging and error handling | [`src/sqlqa/sql_guard.py`](src/sqlqa/sql_guard.py), the loops above, and the walkthrough in [docs/EXAMPLES.md](docs/EXAMPLES.md#debugging-a-wrong-answer) |
-| Unit tests | [`tests/`](tests/): 126 offline tests, plus 15 live evaluation questions |
+| Debugging and error handling | [`src/sqlqa/sql_guard.py`](src/sqlqa/sql_guard.py), [`src/sqlqa/filter_check.py`](src/sqlqa/filter_check.py), the loops above, and the walkthrough in [docs/EXAMPLES.md](docs/EXAMPLES.md#debugging-a-wrong-answer) |
+| Unit tests | [`tests/`](tests/): 169 offline tests, plus 16 live evaluation questions |
 | Code quality | One responsibility per module; see the layout below |
 | Production considerations | [docs/PRODUCTION.md](docs/PRODUCTION.md) |
 | Example queries and outputs | [docs/EXAMPLES.md](docs/EXAMPLES.md) |
@@ -106,6 +113,7 @@ src/sqlqa/            the agent; knows nothing about universities
   config.py           settings from environment variables
   db.py               read-only engine, schema introspection, query execution
   sql_guard.py        the SELECT-only check (sqlglot)
+  filter_check.py     after an empty result: do the query's filter values exist?
   llm.py              model creation, output shapes, the one function that calls the model
   prompts.py          prompt text with placeholders
   state.py            the state that flows through the graph
@@ -122,8 +130,8 @@ scripts/              make_examples.py regenerates docs/traces/ and docs/EXAMPLE
 ## Tests
 
 ```bash
-uv run pytest             # 126 tests, offline, about 2 seconds, no API key needed
-uv run pytest -m live     # 15 real questions against the real model (costs a few cents)
+uv run pytest             # 169 tests, offline, about 2 seconds, no API key needed
+uv run pytest -m live     # 16 real questions against the real model (costs a few cents)
 uv run ruff check .
 ```
 
@@ -141,7 +149,7 @@ run must have fetched from the database.
 
 Every run writes one JSON file to `traces/` with every node, every prompt and reply, the SQL, the
 guard's verdict, every returned row, timings and token counts. `sqlqa render-trace` turns it into
-Markdown. Ten example traces, in both forms, are in [`docs/traces/`](docs/traces/).
+Markdown. Eleven example traces, in both forms, are in [`docs/traces/`](docs/traces/).
 
 LangSmith works as well, with no code change: set `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY`
 and `LANGSMITH_PROJECT` in `.env`.

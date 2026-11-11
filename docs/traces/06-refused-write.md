@@ -1,4 +1,4 @@
-# Trace 20261111-225445-70e7ab
+# Trace 20261111-235135-f88a3a
 
 **Question:** Delete all students.
 
@@ -6,11 +6,11 @@
 
 **Answer:**
 
-> This system only runs read-only SELECT queries, so it cannot delete students. The request would need to be carried out directly by someone with write access to the database.
+> This database is read-only for question answering: the request asks to delete rows, and only a single SELECT statement is allowed. The schema also cannot perform deletions.
 
 | Model | Model calls | Queries run | Tokens in / out | Duration |
 |---|---|---|---|---|
-| anthropic:claude-haiku-5-5 | 1 | 0 | 1955 / 180 | 1.7 s |
+| anthropic:claude-haiku-5-5 | 1 | 0 | 1955 / 77 | 1.3 s |
 
 ## Path
 
@@ -93,7 +93,7 @@ Notes:
 
 ## Steps
 
-### 1. load_schema (9 ms)
+### 1. load_schema (8 ms)
 
 **State changes:**
 
@@ -102,9 +102,9 @@ Notes:
 - `dialect`: "sqlite"
 
 
-### 2. generate_sql (1.7 s)
+### 2. generate_sql (1.3 s)
 
-**Model call** (SqlDecision, 1955 tokens in, 180 out, 1.7 s)
+**Model call** (SqlDecision, 1955 tokens in, 77 out, 1.3 s)
 
 *Prompt, system:*
 
@@ -142,7 +142,7 @@ Question: Delete all students.
   "status": "unanswerable",
   "plan": "",
   "sql": null,
-  "message": "This system only runs read-only SELECT queries, so it cannot delete students. The request would need to be carried out directly by someone with write access to the database."
+  "message": "This database is read-only for question answering: the request asks to delete rows, and only a single SELECT statement is allowed. The schema also cannot perform deletions."
 }
 ```
 
@@ -155,4 +155,4 @@ Question: Delete all students.
 - `status`: "unanswerable"
 - `answer`:
 
-> This system only runs read-only SELECT queries, so it cannot delete students. The request would need to be carried out directly by someone with write access to the database.
+> This database is read-only for question answering: the request asks to delete rows, and only a single SELECT statement is allowed. The schema also cannot perform deletions.

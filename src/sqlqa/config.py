@@ -15,6 +15,8 @@ class Settings:
     max_attempts: int = 3  # tries to get one valid query
     max_queries: int = 3  # queries executed per question
     max_llm_calls: int = 10  # hard stop for the whole run
+    max_filter_probes: int = 5  # comparisons checked when a result is empty
+    filter_value_limit: int = 10  # existing values shown for a missing one; 0 shows none
     trace_dir: str = "traces"
 
     @classmethod
@@ -39,5 +41,7 @@ class Settings:
             max_attempts=number("MAX_ATTEMPTS", cls.max_attempts),
             max_queries=number("MAX_QUERIES", cls.max_queries),
             max_llm_calls=number("MAX_LLM_CALLS", cls.max_llm_calls),
+            max_filter_probes=number("MAX_FILTER_PROBES", cls.max_filter_probes),
+            filter_value_limit=number("FILTER_VALUE_LIMIT", cls.filter_value_limit),
             trace_dir=os.environ.get("TRACE_DIR") or cls.trace_dir,
         )

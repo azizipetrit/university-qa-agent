@@ -3,9 +3,10 @@
 from sqlqa import prompts
 from sqlqa.config import Settings
 from sqlqa.db import Database
+from sqlqa.filter_check import check_filters
 from sqlqa.llm import AnswerDecision, FinalAnswer, SqlDecision, call_llm
 from sqlqa.sql_guard import check_sql
-from sqlqa.state import Query, State
+from sqlqa.state import Query, State, is_empty
 
 BAD_FORMAT = "The reply did not match the required format."
 
@@ -67,8 +68,23 @@ class Nodes:
             columns=result.columns,
             rows=result.rows,
             truncated=result.truncated,
+            filter_check=None,
         )
+        if is_empty(result.rows):
+            # Not recorded yet: check_filters adds its finding first.
+            return {"pending": query, "attempts": 0, "error": None}
         return {"queries": [query], "attempts": 0, "error": None}
+
+    def check_filters(self, state: State) -> dict:
+        """After an empty result: do the query's filter values exist at all? No model call."""
+        query = state["pending"]
+        finding = check_filters(
+            query["sql"],
+            self.db,
+            max_probes=self.settings.max_filter_probes,
+            value_limit=self.settings.filter_value_limit,
+        )
+        return {"queries": [query | {"filter_check": finding}], "pending": None}
 
     def answer(self, state: State) -> dict:
         """Ask the model to answer from the results, or to request one more query."""

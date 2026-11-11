@@ -1,4 +1,4 @@
-# Trace 20261111-225435-2db3d8
+# Trace 20261111-235121-7f159e
 
 **Question:** What is the average grade in the programming intro class taught by Dr. Chen in the winter term of 2025?
 
@@ -6,15 +6,15 @@
 
 **Answer:**
 
-> The average grade is not available. The query returned NULL, which means either no enrollments matched or every matching enrollment is still in progress with no grade yet. This assumed the course title contains both 'programming' and 'intro', the teacher name contains 'Chen', and the term is 'Winter' in 2025. The query did not check which of these cases applies.
+> No average grade can be given. The database has no winter term: the semester term values are only 'Fall' and 'Spring'. So no semester matches winter 2025, and no offering of the programming intro class taught by Dr. Chen in winter 2025 exists. The 2025 year and the Chen teacher and programming intro course do exist in the data, but this combination does not. If you meant a Fall or Spring 2025 term, I can check the average grade for that.
 
 | Model | Model calls | Queries run | Tokens in / out | Duration |
 |---|---|---|---|---|
-| anthropic:claude-haiku-5-5 | 2 | 1 | 3242 / 1321 | 7.4 s |
+| anthropic:claude-haiku-5-5 | 2 | 1 | 3568 / 1691 | 8.1 s |
 
 ## Path
 
-load_schema → generate_sql → validate_sql → execute_sql → answer
+load_schema → generate_sql → validate_sql → execute_sql → check_filters → answer
 
 ## Schema given to the model
 
@@ -78,9 +78,9 @@ Notes:
 - `dialect`: "sqlite"
 
 
-### 2. generate_sql (4.1 s)
+### 2. generate_sql (5.6 s)
 
-**Model call** (SqlDecision, 1490 tokens in, 862 out, 4.1 s)
+**Model call** (SqlDecision, 1490 tokens in, 1374 out, 5.6 s)
 
 *Prompt, system:*
 
@@ -116,8 +116,8 @@ Question: What is the average grade in the programming intro class taught by Dr.
 ```json
 {
   "status": "sql",
-  "plan": "Averages the non-NULL grades across enrollments in offerings whose course title contains 'programming' and 'intro', whose teacher name contains 'Chen', and whose semester is winter term of 2025. Assumes the title match is loose since the exact course name is unknown, and that the term is stored as 'Winter' in any case. In-progress enrollments with NULL grades are excluded by AVG.",
-  "sql": "SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id JOIN teachers t ON o.teacher_id = t.id JOIN semesters s ON o.semester_id = s.id WHERE LOWER(c.title) LIKE '%programming%' AND LOWER(c.title) LIKE '%intro%' AND LOWER(t.name) LIKE '%chen%' AND LOWER(s.term) = 'winter' AND s.year = 2025",
+  "plan": "Averages the non-NULL grades of enrollments in offerings whose course title contains 'programming' and 'intro', taught by a teacher whose name contains 'Chen', in a semester with term starting 'winter' and year 2025. Results are grouped by offering so each matching class is listed with its teacher and semester; ungraded enrollments are ignored by AVG. Assumes 'Dr. Chen' matches any teacher named Chen and that the term is stored as 'Winter'.",
+  "sql": "SELECT c.code, c.title, t.id AS teacher_id, t.name AS teacher_name, s.id AS semester_id, s.name AS semester_name, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id JOIN teachers t ON o.teacher_id = t.id JOIN semesters s ON o.semester_id = s.id WHERE c.title LIKE '%programming%' AND c.title LIKE '%intro%' AND t.name LIKE '%Chen%' AND s.term LIKE 'winter%' AND s.year = 2025 GROUP BY c.id, c.code, c.title, t.id, t.name, s.id, s.name",
   "message": null
 }
 ```
@@ -129,14 +129,14 @@ Question: What is the average grade in the programming intro class taught by Dr.
 - `sql`:
 
 ```sql
-SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id JOIN teachers t ON o.teacher_id = t.id JOIN semesters s ON o.semester_id = s.id WHERE LOWER(c.title) LIKE '%programming%' AND LOWER(c.title) LIKE '%intro%' AND LOWER(t.name) LIKE '%chen%' AND LOWER(s.term) = 'winter' AND s.year = 2025
+SELECT c.code, c.title, t.id AS teacher_id, t.name AS teacher_name, s.id AS semester_id, s.name AS semester_name, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id JOIN teachers t ON o.teacher_id = t.id JOIN semesters s ON o.semester_id = s.id WHERE c.title LIKE '%programming%' AND c.title LIKE '%intro%' AND t.name LIKE '%Chen%' AND s.term LIKE 'winter%' AND s.year = 2025 GROUP BY c.id, c.code, c.title, t.id, t.name, s.id, s.name
 ```
 
 - `error`: null
-- `plan`: "Averages the non-NULL grades across enrollments in offerings whose course title contains 'programming' and 'intro', whose teacher name contains 'Chen', and whose semester is winter term of 2025. Assumes the title match is loose since the exact course name is unknown, and that the term is stored as 'Winter' in any case. In-progress enrollments with NULL grades are excluded by AVG."
+- `plan`: "Averages the non-NULL grades of enrollments in offerings whose course title contains 'programming' and 'intro', taught by a teacher whose name contains 'Chen', in a semester with term starting 'winter' and year 2025. Results are grouped by offering so each matching class is listed with its teacher and semester; ungraded enrollments are ignored by AVG. Assumes 'Dr. Chen' matches any teacher named Chen and that the term is stored as 'Winter'."
 
 
-### 3. validate_sql (1 ms)
+### 3. validate_sql (2 ms)
 
 **State changes:**
 
@@ -147,26 +147,45 @@ SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o 
 
 **State changes:**
 
-- `queries`: one query recorded
+- `pending`: empty result, held for check_filters
   - reason: Answer the user's question.
-  - plan: Averages the non-NULL grades across enrollments in offerings whose course title contains 'programming' and 'intro', whose teacher name contains 'Chen', and whose semester is winter term of 2025. Assumes the title match is loose since the exact course name is unknown, and that the term is stored as 'Winter' in any case. In-progress enrollments with NULL grades are excluded by AVG.
-  - result: 1 row(s)
+  - plan: Averages the non-NULL grades of enrollments in offerings whose course title contains 'programming' and 'intro', taught by a teacher whose name contains 'Chen', in a semester with term starting 'winter' and year 2025. Results are grouped by offering so each matching class is listed with its teacher and semester; ungraded enrollments are ignored by AVG. Assumes 'Dr. Chen' matches any teacher named Chen and that the term is stored as 'Winter'.
+  - result: 0 row(s)
 
 ```sql
-SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id JOIN teachers t ON o.teacher_id = t.id JOIN semesters s ON o.semester_id = s.id WHERE LOWER(c.title) LIKE '%programming%' AND LOWER(c.title) LIKE '%intro%' AND LOWER(t.name) LIKE '%chen%' AND LOWER(s.term) = 'winter' AND s.year = 2025
+SELECT c.code, c.title, t.id AS teacher_id, t.name AS teacher_name, s.id AS semester_id, s.name AS semester_name, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id JOIN teachers t ON o.teacher_id = t.id JOIN semesters s ON o.semester_id = s.id WHERE c.title LIKE '%programming%' AND c.title LIKE '%intro%' AND t.name LIKE '%Chen%' AND s.term LIKE 'winter%' AND s.year = 2025 GROUP BY c.id, c.code, c.title, t.id, t.name, s.id, s.name
 ```
-
-| average_grade |
-|---|
-| NULL |
 
 - `attempts`: 0
 - `error`: null
 
 
-### 5. answer (3.2 s)
+### 5. check_filters (7 ms)
 
-**Model call** (AnswerDecision, 1752 tokens in, 459 out, 3.2 s)
+**State changes:**
+
+- `queries`: one query recorded
+  - reason: Answer the user's question.
+  - plan: Averages the non-NULL grades of enrollments in offerings whose course title contains 'programming' and 'intro', taught by a teacher whose name contains 'Chen', in a semester with term starting 'winter' and year 2025. Results are grouped by offering so each matching class is listed with its teacher and semester; ungraded enrollments are ignored by AVG. Assumes 'Dr. Chen' matches any teacher named Chen and that the term is stored as 'Winter'.
+  - result: 0 row(s)
+
+```sql
+SELECT c.code, c.title, t.id AS teacher_id, t.name AS teacher_name, s.id AS semester_id, s.name AS semester_name, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id JOIN teachers t ON o.teacher_id = t.id JOIN semesters s ON o.semester_id = s.id WHERE c.title LIKE '%programming%' AND c.title LIKE '%intro%' AND t.name LIKE '%Chen%' AND s.term LIKE 'winter%' AND s.year = 2025 GROUP BY c.id, c.code, c.title, t.id, t.name, s.id, s.name
+```
+
+Filter check (the database was asked whether each filter value exists):
+- semesters.year = 2025: found
+- semesters.term LIKE 'winter%': no row has this value; the column holds only: 'Fall', 'Spring'
+- teachers.name LIKE '%Chen%': found
+- courses.title LIKE '%programming%': found
+- courses.title LIKE '%intro%': found
+
+- `pending`: null
+
+
+### 6. answer (2.5 s)
+
+**Model call** (AnswerDecision, 2078 tokens in, 317 out, 2.5 s)
 
 *Prompt, system:*
 
@@ -180,7 +199,10 @@ Rules for the answer:
 - If a query made an assumption (see its plan), say so.
 - If the results contain several different entities matching one name, report each one separately, told apart by a unique column.
 - If a result is NULL, the value is not available. Say that, and why if the schema notes explain it. Do not report it as zero.
-- If a result has 0 rows, judge whether "nothing matches" is the true answer or the query was probably wrong, for example a filter value written differently from the data.
+- A result with 0 rows or only NULLs is followed by a filter check: the database was asked whether each filter value in the query exists. Rely on it, do not guess.
+  - If it says a value does not exist, the query asked for something the data does not have. Say so, and mention the existing values it lists.
+  - If it shows the value exists in another form (for example a different case), or one of the listed values is clearly what the user meant, ask for another query that uses that value.
+  - If every checked value was found, the empty result is real: nothing matches that combination.
 - If a result is marked truncated, say that only the first rows are shown.
 
 Schema:
@@ -194,10 +216,15 @@ Question: What is the average grade in the programming intro class taught by Dr.
 
 Query 1
 Reason: Answer the user's question.
-Plan: Averages the non-NULL grades across enrollments in offerings whose course title contains 'programming' and 'intro', whose teacher name contains 'Chen', and whose semester is winter term of 2025. Assumes the title match is loose since the exact course name is unknown, and that the term is stored as 'Winter' in any case. In-progress enrollments with NULL grades are excluded by AVG.
-SQL: SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id JOIN teachers t ON o.teacher_id = t.id JOIN semesters s ON o.semester_id = s.id WHERE LOWER(c.title) LIKE '%programming%' AND LOWER(c.title) LIKE '%intro%' AND LOWER(t.name) LIKE '%chen%' AND LOWER(s.term) = 'winter' AND s.year = 2025
-Result: 1 row(s), columns: average_grade. Every value is NULL.
-[null]
+Plan: Averages the non-NULL grades of enrollments in offerings whose course title contains 'programming' and 'intro', taught by a teacher whose name contains 'Chen', in a semester with term starting 'winter' and year 2025. Results are grouped by offering so each matching class is listed with its teacher and semester; ungraded enrollments are ignored by AVG. Assumes 'Dr. Chen' matches any teacher named Chen and that the term is stored as 'Winter'.
+SQL: SELECT c.code, c.title, t.id AS teacher_id, t.name AS teacher_name, s.id AS semester_id, s.name AS semester_name, AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id JOIN courses c ON o.course_id = c.id JOIN teachers t ON o.teacher_id = t.id JOIN semesters s ON o.semester_id = s.id WHERE c.title LIKE '%programming%' AND c.title LIKE '%intro%' AND t.name LIKE '%Chen%' AND s.term LIKE 'winter%' AND s.year = 2025 GROUP BY c.id, c.code, c.title, t.id, t.name, s.id, s.name
+Result: 0 rows. The query matched nothing.
+Filter check (the database was asked whether each filter value exists):
+- semesters.year = 2025: found
+- semesters.term LIKE 'winter%': no row has this value; the column holds only: 'Fall', 'Spring'
+- teachers.name LIKE '%Chen%': found
+- courses.title LIKE '%programming%': found
+- courses.title LIKE '%intro%': found
 
 1 of 3 queries have been used. Choose a status:
 - "answer": the results are enough. Write the answer.
@@ -209,7 +236,7 @@ Result: 1 row(s), columns: average_grade. Every value is NULL.
 ```json
 {
   "status": "answer",
-  "answer": "The average grade is not available. The query returned NULL, which means either no enrollments matched or every matching enrollment is still in progress with no grade yet. This assumed the course title contains both 'programming' and 'intro', the teacher name contains 'Chen', and the term is 'Winter' in 2025. The query did not check which of these cases applies.",
+  "answer": "No average grade can be given. The database has no winter term: the semester term values are only 'Fall' and 'Spring'. So no semester matches winter 2025, and no offering of the programming intro class taught by Dr. Chen in winter 2025 exists. The 2025 year and the Chen teacher and programming intro course do exist in the data, but this combination does not. If you meant a Fall or Spring 2025 term, I can check the average grade for that.",
   "reason": null
 }
 ```
@@ -220,4 +247,4 @@ Result: 1 row(s), columns: average_grade. Every value is NULL.
 - `status`: "answered"
 - `answer`:
 
-> The average grade is not available. The query returned NULL, which means either no enrollments matched or every matching enrollment is still in progress with no grade yet. This assumed the course title contains both 'programming' and 'intro', the teacher name contains 'Chen', and the term is 'Winter' in 2025. The query did not check which of these cases applies.
+> No average grade can be given. The database has no winter term: the semester term values are only 'Fall' and 'Spring'. So no semester matches winter 2025, and no offering of the programming intro class taught by Dr. Chen in winter 2025 exists. The 2025 year and the Chen teacher and programming intro course do exist in the data, but this combination does not. If you meant a Fall or Spring 2025 term, I can check the average grade for that.

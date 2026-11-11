@@ -30,6 +30,7 @@ from sqlqa.config import Settings  # noqa: E402
 from sqlqa.db import Database  # noqa: E402
 from sqlqa.graph import run  # noqa: E402
 from sqlqa.llm import create_llm  # noqa: E402
+from sqlqa.prompts import format_filter_check  # noqa: E402
 from sqlqa.tracing import render_markdown  # noqa: E402
 
 TRACES = ROOT / "docs" / "traces"
@@ -57,7 +58,7 @@ EXAMPLES = [
     ),
     (
         "03-no-sample-rows",
-        "Sample rows switched off: a NULL the agent could not explain",
+        "Sample rows off, a term that does not exist: the filter check explains it",
         "What is the average grade in the programming intro class taught by Dr. Chen in the "
         "winter term of 2025?",
         {"sample_rows": 0},
@@ -74,7 +75,7 @@ EXAMPLES = [
     (
         "05-clarification",
         "An ambiguous question gets a clarifying question",
-        "Who is the best?",
+        "How did they do?",
         {},
         "The run ends after `generate_sql`. No SQL is written or run.",
     ),
@@ -91,13 +92,20 @@ EXAMPLES = [
     ),
 ]
 
-TWO_QUERIES = "10-two-queries-default-settings"
 EXAMPLES.append(
     (
-        TWO_QUERIES,
-        "An open question answered with two queries, on default settings",
-        "Is there anything unusual about the grades in this database? Look at the data and "
-        "then dig into whatever stands out.",
+        "11-missing-value",
+        "A value that does not exist: the filter check says what does",
+        "What is the average grade in BIO101?",
+        {},
+        "",  # see NOTES
+    )
+)
+EXAMPLES.append(
+    (
+        "12-wrong-case",
+        "A value written in the wrong case: the filter check finds the real one",
+        "What is the average grade for the course with code 'Math201'?",
         {},
         "",  # see NOTES
     )
@@ -214,6 +222,8 @@ def example_section(name: str, title: str, note: str) -> list[str]:
             f"Returned {len(query['rows'])} row(s).",
             "",
         ]
+        if query.get("filter_check"):
+            out += ["```text", *format_filter_check(query["filter_check"]), "```", ""]
     out += [f"**Path:** `{path_of(trace)}`", ""]
     if note:
         out += [note, ""]
@@ -337,8 +347,8 @@ def debugging_section() -> list[str]:
         "read differently than intended |",
         "| Wrong table or join | The schema block at the top of the trace | Missing foreign key, "
         "or a missing note |",
-        "| 0 rows unexpectedly | The filter values in the SQL against the sample rows | A value "
-        "written differently from the data |",
+        "| 0 rows or only NULLs | The filter check under the result in the `check_filters` step | "
+        "A value that is not in the column, or is written differently |",
         "| Run ended in `give_up` | The `error` in each `validate_sql` and `execute_sql` step | "
         "The model could not repair the SQL in 3 attempts |",
         "| Answer disagrees with the rows | The result table in `execute_sql` against the "
@@ -352,20 +362,32 @@ def debugging_section() -> list[str]:
 NOTES: dict[str, str] = {
     "03-no-sample-rows": (
         "Sample rows were switched off for this run (`SAMPLE_ROWS=0`), so the model could not "
-        "see how terms are written and filtered on a term called 'winter', which does not "
-        "exist. An average over no matching rows is one row holding NULL, not zero rows, so "
-        "the result looked the same as a class that is not graded yet. The answer says the "
-        "value is not available and names both possible causes, but it did not ask for a "
-        "second query to find out which. Earlier runs of this question did ask for one. This "
-        "is a known limitation, listed in `DESIGN.md`."
+        "see how terms are written and filtered on a 'winter' term. The result was empty, so "
+        "`check_filters` ran and found that four of the five filter values exist and one does "
+        "not: no term contains 'winter', and the column holds only 'Fall' and 'Spring'. The "
+        "answer states that as a fact and needs no second query. Before `check_filters` "
+        "existed, runs of this question either guessed or spent a second query to find out."
     ),
-    TWO_QUERIES: (
-        "This run used the default settings. The first query was a broad check. The `answer` "
-        "node then asked for a second query to break the NULL grades down by semester, with "
-        "the reason shown above, and the answer is built from both results. The counts are "
-        "correct: 31 enrollments, 11 without a grade, 9 of them in Fall 2026 and 2 in Spring "
-        "2026. Of six compound questions tried on default settings, this was the only one "
-        "that used a second query; the other five were answered with one."
+    "05-clarification": (
+        "The question names nobody and nothing, so it has no reasonable reading. The run ends "
+        "after `generate_sql`; no SQL is written or run. This question got a clarifying "
+        "question in five runs out of five. A question that does have a reasonable reading, "
+        "such as 'Who is the best?', may instead be answered with a stated assumption, which "
+        "the prompt allows."
+    ),
+    "11-missing-value": (
+        "No course has this code. An average over no matching rows is one row holding NULL, "
+        "which on its own looks like a course that is not graded yet. `check_filters` asked the "
+        "database and found that the code does not exist, and listed the six that do. The "
+        "answer reports that as a fact, with no second query and no extra model call."
+    ),
+    "12-wrong-case": (
+        "The code exists, written differently. SQLite compares text with `=` case-sensitively, "
+        "so the first query matched nothing. `check_filters` found the real spelling, the "
+        "`answer` node asked for a second query with it, and that query returned the average. "
+        "This is a real two-query run on default settings, and it reproduces: the check "
+        "fired and a second query ran in every run made of this question. The value is not "
+        "among the three sample rows the model was shown for this table."
     ),
     "04-null-result-latest-semester": (
         "The latest semester has enrollments but no grades yet, so the average is NULL. The "

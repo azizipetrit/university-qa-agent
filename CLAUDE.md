@@ -49,6 +49,7 @@ questions over a SQL database. The owner must present and defend every line, so
 
 ```text
 START → load_schema → generate_sql → validate_sql → execute_sql → answer → END
+                                                        └→ check_filters ┘   (empty result only)
 ```
 
 | Node | LLM | Responsibility |
@@ -56,7 +57,8 @@ START → load_schema → generate_sql → validate_sql → execute_sql → answ
 | `load_schema` | no | Introspect tables, columns, types, PKs, FKs; up to 3 sample rows per table (flag). |
 | `generate_sql` | yes | Structured output: `status` (`sql` / `clarify` / `unanswerable`), `plan`, `sql` or question. |
 | `validate_sql` | no | sqlglot guard (see constraint 2). |
-| `execute_sql` | no | Run read-only, apply row limit, record rows / truncation / error. |
+| `execute_sql` | no | Run read-only, apply row limit, record rows / truncation / error. An empty result is held as `pending`, not recorded. |
+| `check_filters` | no | Only when the result has 0 rows or only NULLs. Probe each simple literal comparison in the SQL (does the value exist, and if not, what does) and record the query with the finding. |
 | `answer` | yes | Structured output: a final answer, **or** a request for another query with its reason. At the query cap it gets a schema that can only answer. |
 | `give_up` | no | Honest failure message with the last error. |
 
@@ -64,9 +66,17 @@ Routing:
 
 - **Repair loop:** a validation or DB error routes back to `generate_sql` with the error text, up to
   `MAX_ATTEMPTS` (3) per query; then `give_up`.
-- **Empty result:** reviewed by `answer`, which runs after every query. Its prompt flags 0 rows and
-  all-NULL results; it either answers "nothing matched" or requests a corrected query (which counts
-  towards `MAX_QUERIES`). There is no separate review node.
+- **Empty result:** `execute_sql` routes to `check_filters` when the result has 0 rows or only
+  NULLs, then on to `answer` (or `give_up` if no model calls are left). Otherwise it routes
+  straight to `answer`. `check_filters` makes no model call and counts against no limit.
+- **Using the finding:** `answer` is shown the finding under the result and told to rely on it: a
+  missing value means say so; a value that exists in another form means request a corrected query
+  (which counts towards `MAX_QUERIES`); all values found means the empty result is real. Empty
+  results are handled with evidence from the database, never with more prompt wording.
+- **Filter check rules:** probes are built with SQLAlchemy Core and bound parameters, never by
+  re-running model SQL or sqlglot output. Only `=`, `IN`, `LIKE` against a literal, optionally
+  with `LOWER`/`UPPER` on the column. Anything not resolvable to exactly one real table is skipped
+  and counted, never guessed.
 - **Overall cap:** `MAX_LLM_CALLS` (10) per run, on top of the two caps above. When hit, the run goes
   to `give_up`.
 - **Attempts reset** to 0 after each query that executes, so each query gets its own 3 attempts.
@@ -86,6 +96,7 @@ src/sqlqa/            generic agent, no university knowledge
   config.py           env settings
   db.py               engine, read-only setup, introspection, execute
   sql_guard.py        sqlglot validation (pure function)
+  filter_check.py     probes filter values after an empty result (sqlglot + Core)
   llm.py              init_chat_model, structured output models, call_llm (the only LLM call site)
   prompts.py          templates; placeholders only, no schema names
   state.py            TypedDict state
@@ -110,7 +121,8 @@ Read once in `config.py`; `.env.example` documents every one.
 - Required: `DATABASE_URL`, `LLM_MODEL` (`provider:model`), plus the provider's API key.
 - Optional: `SCHEMA_NOTES_FILE`, `STRUCTURED_OUTPUT_METHOD` (empty = provider default; `json_schema`
   for Anthropic), `SAMPLE_ROWS` (3; 0 disables), `MAX_ROWS` (50), `MAX_ATTEMPTS` (3),
-  `MAX_QUERIES` (3), `MAX_LLM_CALLS` (10), `TRACE_DIR` (`traces`).
+  `MAX_QUERIES` (3), `MAX_LLM_CALLS` (10), `MAX_FILTER_PROBES` (5), `FILTER_VALUE_LIMIT` (10;
+  0 stops the filter check listing any values), `TRACE_DIR` (`traces`).
 - LangSmith uses its own standard env vars.
 
 ## Database (university/)
@@ -140,6 +152,8 @@ Build with `uv run python -m university.build_db`.
 - `test_generation`: prompt contains the introspected schema; output handling; feedback on retry.
 - `test_agent`: happy path, repair, blocked write, clarify, empty and NULL results, attempts
   exhausted, multi-query, query cap, LLM-call cap, crash.
+- `test_filter_check`: which comparisons are read from SQL, what is skipped, what each probe
+  reports, the value limit and the probe cap.
 - `test_tracing`: JSON contents, Markdown view, `render-trace`, settings.
 - `test_live` (marker `live`, excluded by default; run with `uv run pytest -m live`): the golden
   questions in `university/golden_questions.json` against the real model. Run it after any change

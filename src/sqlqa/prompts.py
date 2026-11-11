@@ -2,7 +2,7 @@
 
 import json
 
-from sqlqa.state import State
+from sqlqa.state import State, is_empty
 
 SQL_SYSTEM = """\
 You write SQL for a question-answering system. You are given a database schema and a request.
@@ -43,8 +43,14 @@ a "she", so do not use those words.
 separately, told apart by a unique column.
 - If a result is NULL, the value is not available. Say that, and why if the schema notes explain \
 it. Do not report it as zero.
-- If a result has 0 rows, judge whether "nothing matches" is the true answer or the query was \
-probably wrong, for example a filter value written differently from the data.
+- A result with 0 rows or only NULLs is followed by a filter check: the database was asked \
+whether each filter value in the query exists. Rely on it, do not guess.
+  - If it says a value does not exist, the query asked for something the data does not have. \
+Say so, and mention the existing values it lists.
+  - If it shows the value exists in another form (for example a different case), or one of the \
+listed values is clearly what the user meant, ask for another query that uses that value.
+  - If every checked value was found, the empty result is real: nothing matches that \
+combination.
 - If a result is marked truncated, say that only the first rows are shown.
 
 Schema:
@@ -101,7 +107,7 @@ def format_queries(queries: list) -> str:
             summary = f"{len(rows)} row(s), columns: {', '.join(query['columns'])}"
             if query["truncated"]:
                 summary += " (truncated: more rows exist, only the first are shown)"
-            if all(value is None for row in rows for value in row):
+            if is_empty(rows):
                 summary += ". Every value is NULL."
         lines = [
             f"Query {number}",
@@ -110,6 +116,20 @@ def format_queries(queries: list) -> str:
             f"SQL: {query['sql']}",
             f"Result: {summary}",
             *[json.dumps(row) for row in rows],
+            *format_filter_check(query.get("filter_check")),
         ]
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)
+
+
+def format_filter_check(finding: dict | None) -> list[str]:
+    """What check_filters found, one line per comparison. Also used by the trace view."""
+    if finding is None:
+        return []
+    lines = ["Filter check (the database was asked whether each filter value exists):"]
+    lines += [f"- {item['filter']}: {item['detail']}" for item in finding["checked"]]
+    if finding["not_checked"]:
+        lines.append(f"- {finding['not_checked']} other comparison(s) could not be checked.")
+    if not finding["checked"]:
+        lines.append("- No simple filter value could be checked.")
+    return lines

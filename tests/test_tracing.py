@@ -2,10 +2,11 @@
 
 import json
 
-from fakes import answer, ask, need_query, sql
+from fakes import FakeLLM, answer, ask, need_query, sql
 
 from sqlqa.cli import main
 from sqlqa.config import Settings
+from sqlqa.graph import run
 from sqlqa.tracing import render_markdown
 
 QUESTION = "How many teachers are there?"
@@ -92,6 +93,35 @@ def test_trace_records_a_rejected_query_and_why(db, tmp_path):
     assert rejected["node"] == "validate_sql"
     assert rejected["update"]["error"] == "Only SELECT statements are allowed, not DROP."
     assert run.trace["steps"][1]["update"]["sql"] == "DROP TABLE teachers"
+
+
+def test_raw_reply_is_stored_without_the_provider_signature(db, tmp_path):
+    """Reasoning blocks from some providers carry a long opaque signature. It is left out."""
+
+    class Reply:
+        usage_metadata = {"input_tokens": 1, "output_tokens": 1}
+        content = [
+            {"type": "thinking", "thinking": "", "signature": "A" * 2000},
+            {"type": "text", "text": "{}"},
+        ]
+
+    class WithRawReply(FakeLLM):
+        def with_structured_output(self, schema, include_raw=False, **options):
+            inner = super().with_structured_output(schema)
+
+            class Wrapped:
+                def invoke(self, messages):
+                    return inner.invoke(messages) | {"raw": Reply()}
+
+            return Wrapped()
+
+    settings = Settings(database_url="unused", llm_model="fake", trace_dir=str(tmp_path))
+    _, trace_path = run("q", WithRawReply(sql(COUNT), answer("Four.")), db, settings)
+    text = trace_path.read_text(encoding="utf-8")
+    assert "signature" not in text
+    assert "AAAA" not in text
+    stored = json.loads(text)["steps"][1]["llm_calls"][0]["raw"]
+    assert stored == [{"type": "thinking", "thinking": ""}, {"type": "text", "text": "{}"}]
 
 
 # --- Markdown view -----------------------------------------------------------

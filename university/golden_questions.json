@@ -112,7 +112,7 @@
     ]
   },
   {
-    "question": "Who is the best?",
+    "question": "How did they do?",
     "status": [
       "clarify"
     ],
@@ -134,15 +134,21 @@
     "expect": []
   },
   {
-    "question": "Is there anything unusual about the grades in this database? Look at the data and then dig into whatever stands out.",
+    "question": "What is the average grade in BIO101?",
+    "status": [
+      "answered"
+    ],
+    "expect": [],
+    "missing_filter": true
+  },
+  {
+    "question": "What is the average grade for the course with code 'Math201'?",
     "status": [
       "answered"
     ],
     "expect": [
-      [
-        11,
-        9
-      ]
-    ]
+      86.0
+    ],
+    "missing_filter": true
   }
 ]
