@@ -3,3 +3,4 @@
 *.db
 __pycache__/
 docs/HW Task.pdf
+/traces/

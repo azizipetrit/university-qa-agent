@@ -13,7 +13,12 @@ questions over a SQL database. The owner must present and defend every line, so
 - Do not start a phase without approval of the previous one.
 - **Git:** never commit to `main`. After a phase's tests pass, show the results and wait for approval;
   then commit on a new branch named `<type>/<short-kebab-description>` (`feat/`, `fix/`, `test/`,
-  `docs/`, `chore/`), push it, and stop. The owner reviews on GitHub and merges to `main` manually.
+  `docs/`, `chore/`), push it, open a PR, and stop. The owner reviews on GitHub and merges to `main`
+  manually.
+- **Authorship:** commits are under the owner's name only (no `Co-Authored-By` line) and PR
+  descriptions carry no "Generated with" footer.
+- **`.env.example` stays current:** any change to a setting (new, renamed, new default) updates
+  `.env.example` and the Configuration section below in the same commit.
 - No abstraction without a second use. No dependency that isn't listed below without asking.
 
 ## Stack
@@ -22,7 +27,8 @@ questions over a SQL database. The owner must present and defend every line, so
 - SQLite for the demo database; SQLAlchemy **Core** only (no ORM).
 - LangGraph with an explicit `StateGraph`. No prebuilt agents (`create_react_agent` etc.).
 - LLM created with langchain's `init_chat_model` from the `LLM_MODEL` env var. No provider-specific code.
-- `sqlglot` for SQL validation. `pytest` for tests.
+  `langchain-anthropic` is the one provider package installed.
+- `sqlglot` for SQL validation. `python-dotenv` loads `.env` in the CLI. `pytest` and `ruff` for dev.
 
 ## Hard constraints
 
@@ -49,16 +55,21 @@ START → load_schema → generate_sql → validate_sql → execute_sql → answ
 | `generate_sql` | yes | Structured output: `status` (`sql` / `clarify` / `unanswerable`), `plan`, `sql` or question. |
 | `validate_sql` | no | sqlglot guard (see constraint 2). |
 | `execute_sql` | no | Run read-only, apply row limit, record rows / truncation / error. |
-| `answer` | yes | Structured output: a final answer, **or** a request for another query with its reason. |
+| `answer` | yes | Structured output: a final answer, **or** a request for another query with its reason. At the query cap it gets a schema that can only answer. |
 | `give_up` | no | Honest failure message with the last error. |
 
 Routing:
 
 - **Repair loop:** a validation or DB error routes back to `generate_sql` with the error text, up to
   `MAX_ATTEMPTS` (3) per query; then `give_up`.
-- **Empty result:** one review pass after every query (not only the last), where the model confirms
-  empty is correct or fixes the SQL.
-- **Overall cap:** one limit on LLM calls per run (`MAX_LLM_CALLS`), on top of the two caps above.
+- **Empty result:** reviewed by `answer`, which runs after every query. Its prompt flags 0 rows and
+  all-NULL results; it either answers "nothing matched" or requests a corrected query (which counts
+  towards `MAX_QUERIES`). There is no separate review node.
+- **Overall cap:** `MAX_LLM_CALLS` (10) per run, on top of the two caps above. When hit, the run goes
+  to `give_up`.
+- **Attempts reset** to 0 after each query that executes, so each query gets its own 3 attempts.
+- **Bad model output** (does not fit the schema) counts as a failed attempt in `generate_sql`, and
+  ends the run as `failed` in `answer`.
 - **Multi-step loop:** `answer` may request another query (with a reason), which routes to
   `generate_sql` with all previous queries and results. Cap: `MAX_QUERIES` (3) executed queries per
   question. At the cap, `answer` must answer with what is available and say the cap was hit.
@@ -73,15 +84,15 @@ src/sqlqa/            generic agent, no university knowledge
   config.py           env settings
   db.py               engine, read-only setup, introspection, execute
   sql_guard.py        sqlglot validation (pure function)
-  llm.py              init_chat_model, structured output models
+  llm.py              init_chat_model, structured output models, call_llm (the only LLM call site)
   prompts.py          templates; placeholders only, no schema names
   state.py            TypedDict state
-  nodes.py            node functions
-  graph.py            build_graph(llm, db, tracer, settings), routers
+  nodes.py            Nodes class: one method per node
+  graph.py            build_graph(llm, db, tracer, settings), routers, run(question, ...)
   tracing.py          JSON tracer, Markdown renderer
   cli.py              ask, render-trace
-university/           schema.sql, seed.sql, build_db.py
-tests/
+university/           schema.sql, seed.sql, notes.md, build_db.py
+tests/                fakes.py holds the scripted FakeLLM and the ask() helper
 docs/                 DESIGN.md, PRODUCTION.md, EXAMPLES.md, traces/
 ```
 
@@ -90,8 +101,13 @@ or env vars.
 
 ## Configuration (env)
 
-`DATABASE_URL`, `LLM_MODEL`, `MAX_ROWS`, `MAX_ATTEMPTS` (3), `MAX_QUERIES` (3), `MAX_LLM_CALLS`,
-`SAMPLE_ROWS` (3; 0 disables), `SCHEMA_NOTES_FILE` (optional), `TRACE_DIR`. `MAX_ROWS` defaults to 50. LangSmith uses its own standard env vars.
+Read once in `config.py`; `.env.example` documents every one.
+
+- Required: `DATABASE_URL`, `LLM_MODEL` (`provider:model`), plus the provider's API key.
+- Optional: `SCHEMA_NOTES_FILE`, `STRUCTURED_OUTPUT_METHOD` (empty = provider default; `json_schema`
+  for Anthropic), `SAMPLE_ROWS` (3; 0 disables), `MAX_ROWS` (50), `MAX_ATTEMPTS` (3),
+  `MAX_QUERIES` (3), `MAX_LLM_CALLS` (10), `TRACE_DIR` (`traces`).
+- LangSmith uses its own standard env vars.
 
 ## Database (university/)
 
@@ -104,19 +120,23 @@ Build with `uv run python -m university.build_db`.
 
 ## Tracing
 
-- Nodes are wrapped in one place in `graph.py`: name, input, state update, duration, error.
-- All LLM calls go through one helper that records prompt, raw response, and token usage.
+- Nodes are wrapped in one place in `graph.py` (`tracer.wrap`): name, state update, duration, error.
+  Node inputs are not stored; the state at any point is the earlier updates applied in order.
+- All LLM calls go through `call_llm`, which records full prompt, parsed and raw reply, token usage.
 - Each query in a run is recorded with its SQL, the reason it was requested, and its result.
-- One file per run: `traces/<timestamp>_<run_id>.json`. `render-trace` produces Markdown showing
-  question → nodes → SQL → rows → answer.
+- One file per run: `traces/<timestamp>-<id>.json` (gitignored), written even if the run crashes.
+- The JSON stores everything. `render-trace` produces Markdown that shows the schema once at the top
+  and replaces it with a placeholder inside each prompt.
 
 ## Tests
 
 - `test_db`: joins and aggregations over the seed data with known answers; averages ignore NULL grades.
 - `test_sql_guard`: accepts CTEs/unions; rejects writes, multi-statement, unknown tables, DML in CTEs.
-- `test_generation`: prompt contains the introspected schema; output parsing; feedback on retry.
-- `test_agent`: happy path, repair, blocked write, clarify, empty result, attempts exhausted,
-  multi-query, query cap hit, trace contents.
+- `test_database`: introspection, execution, row limit, read-only without the guard.
+- `test_generation`: prompt contains the introspected schema; output handling; feedback on retry.
+- `test_agent`: happy path, repair, blocked write, clarify, empty and NULL results, attempts
+  exhausted, multi-query, query cap, LLM-call cap, crash.
+- `test_tracing`: JSON contents, Markdown view, `render-trace`, settings.
 - Agnosticism: the same graph runs against an unrelated toy schema; `src/` is grepped for university
   table names.
 
@@ -131,6 +151,5 @@ Build with `uv run python -m university.build_db`.
 
 1. Project scaffold, university schema + seed, `test_db`.
 2. `db.py` introspection/execution and `sql_guard.py`, with tests.
-3. State, prompts, nodes, graph, fake LLM, `test_generation` and `test_agent`.
-4. Tracing and CLI.
-5. Docs, example runs, committed traces, live evaluation set.
+3. Agent and tracing together: state, prompts, nodes, graph, tracer, CLI, fake LLM, tests.
+4. Docs, example runs, committed traces, live evaluation set.
