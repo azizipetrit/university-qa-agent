@@ -151,5 +151,19 @@
       86.0
     ],
     "missing_filter": true
+  },
+  {
+    "question": "Who are the top 3 students by average grade? Give their rank and average.",
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      "daniel.kim2@uni.example",
+      "Anna Keller",
+      "Eva Novak",
+      91.33,
+      84.5,
+      83.5
+    ]
   }
 ]
