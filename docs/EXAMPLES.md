@@ -187,33 +187,33 @@ Trace: [03-no-sample-rows.md](traces/03-no-sample-rows.md), model `anthropic:cla
 
 **Answer** (status `answered`):
 
-> The average grade in the latest semester is not available: the query returned NULL. This means the enrollments in the latest semester (by start_date) have no grades yet, since NULL grades mark in-progress enrollments and AVG skips them. It is not a grade of zero. The query did not return the semester's name, so I cannot confirm which semester it was.
+> The latest semester is Fall 2026 (start date 2026-09-07), but no average grade is available for it. The average is NULL because every enrollment in that semester is still ungraded, which means the enrollments are in progress. The query assumed the latest semester is the one with the greatest start_date, and it ignored NULL grades when averaging.
 
 ```sql
 SELECT
+  s.name,
   AVG(e.grade) AS average_grade
 FROM enrollments AS e
-JOIN course_offerings AS o
-  ON e.offering_id = o.id
+JOIN course_offerings AS co
+  ON e.offering_id = co.id
+JOIN semesters AS s
+  ON co.semester_id = s.id
 WHERE
-  o.semester_id = (
+  s.start_date = (
     SELECT
-      id
+      MAX(start_date)
     FROM semesters
-    WHERE
-      start_date = (
-        SELECT
-          MAX(start_date)
-        FROM semesters
-      )
   )
+GROUP BY
+  s.id,
+  s.name
 ```
 
 Returned 1 row(s).
 
 **Path:** `load_schema → generate_sql → validate_sql → execute_sql → answer`
 
-The latest semester has enrollments but no grades yet, so the average is NULL. The answer prompt flags NULL results and tells the model not to report zero. In this run the query selected only the average, so the answer could not name the semester, and it says so instead of guessing.
+The latest semester has enrollments but no grades yet, so the average is NULL. The answer prompt flags NULL results and tells the model not to report zero. The query selects the semester's name next to the average, which the SQL prompt asks for, so the answer can say which semester it describes. The start date in the answer is not in the query result: the model took it from the sample rows in the schema. It is correct, but it is a value the answer step was told not to use.
 
 Trace: [04-null-result-latest-semester.md](traces/04-null-result-latest-semester.md), model `anthropic:claude-haiku-5-5`.
 

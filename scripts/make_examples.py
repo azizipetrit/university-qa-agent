@@ -344,9 +344,11 @@ NOTES: dict[str, str] = {
     ),
     "04-null-result-latest-semester": (
         "The latest semester has enrollments but no grades yet, so the average is NULL. The "
-        "answer prompt flags NULL results and tells the model not to report zero. In this run "
-        "the query selected only the average, so the answer could not name the semester, and "
-        "it says so instead of guessing."
+        "answer prompt flags NULL results and tells the model not to report zero. The query "
+        "selects the semester's name next to the average, which the SQL prompt asks for, so the "
+        "answer can say which semester it describes. The start date in the answer is not in "
+        "the query result: the model took it from the sample rows in the schema. It is correct, "
+        "but it is a value the answer step was told not to use."
     ),
 }
 DEBUG_NOTE = (

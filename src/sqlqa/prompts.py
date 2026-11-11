@@ -15,6 +15,8 @@ Rules for the query:
 same format.
 - When the request names a person or thing, also select a column that identifies it uniquely, \
 because names can repeat.
+- When the query has to find which item a figure belongs to (the latest, the highest, the first), \
+also select what that item is, so the answer can name it.
 - Do not add LIMIT unless the request asks for a top or bottom N.
 
 Choose a status:
