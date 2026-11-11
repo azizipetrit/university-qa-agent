@@ -136,7 +136,8 @@
   {
     "question": "What is the average grade in BIO101?",
     "status": [
-      "answered"
+      "answered",
+      "unanswerable"
     ],
     "expect": [],
     "missing_filter": true

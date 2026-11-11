@@ -9,7 +9,9 @@ database. Comparing whole result sets would fail correct queries that merely sel
 an extra column, so only the key values are checked.
 
 A question marked "missing_filter" names a value that is not in the database. For those,
-the run must also contain a filter check that reported the value as not found.
+the run must also contain a filter check that reported the value as not found. Such a run
+may end as "unanswerable" after its query: once the check has shown the value does not
+exist, saying the database cannot answer is as correct as saying so in an answer.
 """
 
 import json
@@ -64,7 +66,7 @@ def test_golden_question(case, live):
     where = f"\nanswer: {state['answer']}\ntrace: {trace_path}"
 
     assert state["status"] in case["status"], where
-    if state["status"] != "answered":
+    if state["status"] != "answered" and not case.get("missing_filter"):
         assert state["queries"] == [], "no SQL should run for this question" + where
 
     cells = [value for query in state["queries"] for row in query["rows"] for value in row]

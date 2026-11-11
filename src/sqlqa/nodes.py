@@ -1,6 +1,7 @@
 """The graph's nodes. Each takes the state and returns only the keys it changes."""
 
 from sqlqa import prompts
+from sqlqa.answer_check import check_answer
 from sqlqa.config import Settings
 from sqlqa.db import Database
 from sqlqa.filter_check import check_filters
@@ -9,6 +10,7 @@ from sqlqa.sql_guard import check_sql
 from sqlqa.state import Query, State, is_empty
 
 BAD_FORMAT = "The reply did not match the required format."
+NOTE = "\n\nNote: "  # starts every sentence this code appends to a model-written answer
 
 
 class Nodes:
@@ -102,7 +104,7 @@ class Nodes:
             text = decision.answer
             if not decision.complete:
                 text += (
-                    f"\n\nNote: this answer may be incomplete. "
+                    f"{NOTE}this answer may be incomplete. "
                     f"The limit of {limit} queries per question was reached."
                 )
             return update | {"status": "answered", "answer": text}
@@ -112,6 +114,19 @@ class Nodes:
             return update | {"reason": decision.reason or "", "sql": None, "error": None}
 
         return update | {"status": "answered", "answer": decision.answer or ""}
+
+    def verify_answer(self, state: State) -> dict:
+        """Check every figure in the answer against what the run fetched. No model call."""
+        written = state["answer"].split(NOTE)[0]  # not the notes this code added itself
+        finding = check_answer(written, state["queries"], state["question"], notes=self.db.notes())
+        update = {"verification": finding}
+        if finding["unsupported"]:
+            figures = ", ".join(finding["unsupported"])
+            update["answer"] = (
+                f"{state['answer']}{NOTE}these figures were not found in the query results "
+                f"and could not be verified: {figures}."
+            )
+        return update
 
     def give_up(self, state: State) -> dict:
         """End the run honestly when a limit is hit. No model call."""

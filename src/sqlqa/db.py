@@ -60,6 +60,10 @@ class Database:
             for name in self.table_names()
         }
 
+    def notes(self) -> str:
+        """The optional plain-text notes about what the data means, or ''."""
+        return self.notes_file.read_text(encoding="utf-8").strip() if self.notes_file else ""
+
     def describe_schema(self) -> str:
         """The schema as text for the LLM: columns, keys, sample rows, optional notes."""
         inspector = inspect(self.engine)
@@ -91,8 +95,8 @@ class Database:
                 lines += [f"    {[_shorten(value) for value in row]}" for row in sample.rows]
             parts.append("\n".join(lines))
 
-        if self.notes_file:
-            parts.append("Notes:\n" + self.notes_file.read_text(encoding="utf-8").strip())
+        if self.notes():
+            parts.append("Notes:\n" + self.notes())
         return "\n\n".join(parts)
 
     def execute(self, statement) -> QueryResult:

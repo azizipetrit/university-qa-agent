@@ -5,6 +5,9 @@
 When a result is empty (0 rows or only NULLs), check_filters runs between execute_sql and
 answer. It asks the database whether the query's filter values exist, without a model call.
 
+After an answer is written, verify_answer checks that every figure in it appears in what
+the run fetched, and appends a note naming any that do not. Also without a model call.
+
 Three things can send the run back to generate_sql: the guard rejects the SQL, the
 database rejects it, or the answer node asks for another query. Three limits stop it:
 attempts per query, queries per question, and model calls per run.
@@ -57,7 +60,9 @@ def build_graph(llm, db: Database, tracer: Tracer, settings: Settings):
         return "answer" if calls_left(state) else "give_up"
 
     def after_answer(state: State) -> str:
-        if state.get("status"):  # answered, or failed
+        if state.get("status") == "answered":
+            return "verify_answer"
+        if state.get("status"):  # failed: the reply did not fit the schema
             return END
         return "generate_sql" if calls_left(state) else "give_up"  # another query was requested
 
@@ -69,6 +74,7 @@ def build_graph(llm, db: Database, tracer: Tracer, settings: Settings):
         "execute_sql",
         "check_filters",
         "answer",
+        "verify_answer",
         "give_up",
     ):
         graph.add_node(name, tracer.wrap(name, getattr(nodes, name)))
@@ -85,7 +91,10 @@ def build_graph(llm, db: Database, tracer: Tracer, settings: Settings):
         "execute_sql", after_execute, ["answer", "check_filters", "generate_sql", "give_up"]
     )
     graph.add_conditional_edges("check_filters", after_check, ["answer", "give_up"])
-    graph.add_conditional_edges("answer", after_answer, ["generate_sql", "give_up", END])
+    graph.add_conditional_edges(
+        "answer", after_answer, ["verify_answer", "generate_sql", "give_up", END]
+    )
+    graph.add_edge("verify_answer", END)
     graph.add_edge("give_up", END)
     return graph.compile()
 

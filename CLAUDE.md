@@ -48,7 +48,7 @@ questions over a SQL database. The owner must present and defend every line, so
 ## Graph
 
 ```text
-START → load_schema → generate_sql → validate_sql → execute_sql → answer → END
+START → load_schema → generate_sql → validate_sql → execute_sql → answer → verify_answer → END
                                                         └→ check_filters ┘   (empty result only)
 ```
 
@@ -60,6 +60,7 @@ START → load_schema → generate_sql → validate_sql → execute_sql → answ
 | `execute_sql` | no | Run read-only, apply row limit, record rows / truncation / error. An empty result is held as `pending`, not recorded. |
 | `check_filters` | no | Only when the result has 0 rows or only NULLs. Probe each simple literal comparison in the SQL (does the value exist, and if not, what does) and record the query with the finding. |
 | `answer` | yes | Structured output: a final answer, **or** a request for another query with its reason. At the query cap it gets a schema that can only answer. |
+| `verify_answer` | no | Only after an answer is written. Check every number and date in it against the query results, the filter check, the question and the schema notes; append a note naming any not found. |
 | `give_up` | no | Honest failure message with the last error. |
 
 Routing:
@@ -76,7 +77,8 @@ Routing:
 - **Filter check rules:** probes are built with SQLAlchemy Core and bound parameters, never by
   re-running model SQL or sqlglot output. Only `=`, `IN`, `LIKE` against a literal, optionally
   with `LOWER`/`UPPER` on the column. Anything not resolvable to exactly one real table is skipped
-  and counted, never guessed.
+  and counted, never guessed. An unqualified column is skipped whenever the statement has a CTE,
+  a subquery or a set operation.
 - **Overall cap:** `MAX_LLM_CALLS` (10) per run, on top of the two caps above. When hit, the run goes
   to `give_up`.
 - **Attempts reset** to 0 after each query that executes, so each query gets its own 3 attempts.
@@ -86,6 +88,13 @@ Routing:
   `generate_sql` with all previous queries and results. Cap: `MAX_QUERIES` (3) executed queries per
   question. At the cap, `answer` must answer with what is available and say the cap was hit.
   The single-query path makes no extra LLM call.
+- **Answer check:** `answer` routes to `verify_answer` when the status is `answered`, then END.
+  It makes no model call, never retries, and never changes the status. An unsupported figure adds
+  one sentence starting "Note:" to the answer and is recorded in `verification`. It checks
+  presence, not arithmetic: rounding and whole numbers up to a result's row count are allowed;
+  sample rows are deliberately not a source. Sentences the code appends (they start "Note:") are
+  not checked. Keep it quiet on correct answers: after changing it, re-run the examples and the
+  live evaluation and list every answer that got the note.
 - **Clarification:** `clarify` / `unanswerable` end the run with the question or explanation. No
   interrupt or checkpointer (described in `DESIGN.md` as the upgrade path).
 
@@ -97,6 +106,7 @@ src/sqlqa/            generic agent, no university knowledge
   db.py               engine, read-only setup, introspection, execute
   sql_guard.py        sqlglot validation (pure function)
   filter_check.py     probes filter values after an empty result (sqlglot + Core)
+  answer_check.py     finds figures in the answer and looks for them in the run's results
   llm.py              init_chat_model, structured output models, call_llm (the only LLM call site)
   prompts.py          templates; placeholders only, no schema names
   state.py            TypedDict state
@@ -154,6 +164,8 @@ Build with `uv run python -m university.build_db`.
   exhausted, multi-query, query cap, LLM-call cap, crash.
 - `test_filter_check`: which comparisons are read from SQL, what is skipped, what each probe
   reports, the value limit and the probe cap.
+- `test_answer_check`: which figures are read from an answer, what supports each one (rows,
+  rounding, row counts, filter check, question, notes), and what is reported.
 - `test_tracing`: JSON contents, Markdown view, `render-trace`, settings.
 - `test_live` (marker `live`, excluded by default; run with `uv run pytest -m live`): the golden
   questions in `university/golden_questions.json` against the real model. Run it after any change

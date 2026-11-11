@@ -39,6 +39,7 @@ class State(TypedDict, total=False):
     # set once, by whichever node ends the run
     status: str  # answered | clarify | unanswerable | failed
     answer: str
+    verification: dict | None  # set by verify_answer: figures checked, figures not found
 
 
 def is_empty(rows: list[list]) -> bool:

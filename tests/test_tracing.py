@@ -48,6 +48,7 @@ def test_trace_shows_the_full_path_from_question_to_answer(db, tmp_path):
         "validate_sql",
         "execute_sql",
         "answer",
+        "verify_answer",
     ]
     assert trace["status"] == "answered"
     assert trace["answer"] == "Four."
@@ -55,7 +56,7 @@ def test_trace_shows_the_full_path_from_question_to_answer(db, tmp_path):
 
 
 def test_trace_records_sql_guard_verdict_and_rows(db, tmp_path):
-    load, generate, validate, execute, _ = simple_run(db, tmp_path).trace["steps"]
+    load, generate, validate, execute, _, _ = simple_run(db, tmp_path).trace["steps"]
     assert "Table teachers" in load["update"]["schema"]
     assert generate["update"]["sql"] == COUNT
     assert validate["update"] == {"error": None}  # the guard passed it
