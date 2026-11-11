@@ -113,7 +113,7 @@ src/sqlqa/            generic agent, no university knowledge
   nodes.py            Nodes class: one method per node
   graph.py            build_graph(llm, db, tracer, settings), routers, run(question, ...)
   tracing.py          JSON tracer, Markdown renderer
-  cli.py              ask, render-trace
+  cli.py              ask, chat, schema, render-trace
 university/           schema.sql, seed.sql, notes.md, golden_questions.json, build_db.py
 tests/                fakes.py holds the scripted FakeLLM and the ask() helper
 docs/                 DESIGN.md, PRODUCTION.md, EXAMPLES.md, traces/
@@ -134,6 +134,17 @@ Read once in `config.py`; `.env.example` documents every one.
   `MAX_QUERIES` (3), `MAX_LLM_CALLS` (10), `MAX_FILTER_PROBES` (5), `FILTER_VALUE_LIMIT` (10;
   0 stops the filter check listing any values), `TRACE_DIR` (`traces`).
 - LangSmith uses its own standard env vars.
+
+## Command line
+
+- `sqlqa ask "<question>"`: one run. Prints the answer, each query, the status and the trace path.
+  Exit code 1 if the run failed, 2 if a required setting is missing.
+- `sqlqa chat`: a loop around `ask`. Every question is an independent run with its own trace; no
+  history is kept, and the opening message says so. Do not add memory here without asking: the
+  agent is stateless by design (see the interrupt and checkpointer upgrade path in `DESIGN.md`).
+- `sqlqa schema`: prints `Database.describe_schema()` unchanged, so it is exactly what the model
+  is shown. Needs only `DATABASE_URL`.
+- `sqlqa render-trace <file> [-o out.md]`: a trace as Markdown.
 
 ## Database (university/)
 
@@ -166,6 +177,8 @@ Build with `uv run python -m university.build_db`.
   reports, the value limit and the probe cap.
 - `test_answer_check`: which figures are read from an answer, what supports each one (rows,
   rounding, row counts, filter check, question, notes), and what is reported.
+- `test_cli`: `ask`, `chat` (independent questions, a trace path each, exit, end of input, a
+  crashed question) and `schema` (exact text, no model needed).
 - `test_tracing`: JSON contents, Markdown view, `render-trace`, settings.
 - `test_live` (marker `live`, excluded by default; run with `uv run pytest -m live`): the golden
   questions in `university/golden_questions.json` against the real model. Run it after any change
@@ -186,6 +199,8 @@ Build with `uv run python -m university.build_db`.
   examples, and add the score to the table in `DESIGN.md`. Traces `08` and `09` are the original
   Opus runs behind the debugging walkthrough and are kept unless the failure reproduces.
 - `README.md`: keep the requirement map and the test counts in step with the code.
+- `docs/langsmith-run.png` and trace `15-same-run-as-langsmith` belong to one real run whose
+  LangSmith trace is public. Keep the trace as recorded; the README shows the three together.
 - Schema meaning goes in `university/notes.md`, never in `src/` or the prompts. Keep it short and
   factual.
 

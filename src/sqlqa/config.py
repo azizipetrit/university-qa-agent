@@ -20,8 +20,9 @@ class Settings:
     trace_dir: str = "traces"
 
     @classmethod
-    def from_env(cls) -> "Settings":
-        missing = [name for name in ("DATABASE_URL", "LLM_MODEL") if not os.environ.get(name)]
+    def from_env(cls, need_model: bool = True) -> "Settings":
+        required = ("DATABASE_URL", "LLM_MODEL") if need_model else ("DATABASE_URL",)
+        missing = [name for name in required if not os.environ.get(name)]
         if missing:
             raise ValueError(
                 f"Missing setting(s): {', '.join(missing)}. "
@@ -33,7 +34,7 @@ class Settings:
 
         return cls(
             database_url=os.environ["DATABASE_URL"],
-            llm_model=os.environ["LLM_MODEL"],
+            llm_model=os.environ.get("LLM_MODEL", ""),
             structured_output_method=os.environ.get("STRUCTURED_OUTPUT_METHOD") or None,
             schema_notes_file=os.environ.get("SCHEMA_NOTES_FILE") or None,
             sample_rows=number("SAMPLE_ROWS", cls.sample_rows),

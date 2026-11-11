@@ -121,7 +121,22 @@ EXAMPLES.append(
     )
 )
 
+EXAMPLES.append(
+    (
+        "14-ranking",
+        "A top-N ranking",
+        "Who are the top 3 students by average grade? Give their rank and average.",
+        {},
+        "",  # see NOTES
+    )
+)
+
 REPAIR = "07-repair-scripted"
+LANGSMITH = "15-same-run-as-langsmith"  # a fixed trace: the same run is public in LangSmith
+LANGSMITH_URL = (
+    "https://smith.langchain.com/public/285d2736-f428-443d-ace4-156765e016b9/r/"
+    "01a1cce5-2eca-7029-87c5-33f5ce8b2727"
+)
 DEBUG_BEFORE = "08-debug-before-fix"
 DEBUG_AFTER = "09-debug-after-fix"
 
@@ -250,7 +265,7 @@ def example_section(name: str, title: str, note: str) -> list[str]:
 
 
 def write_examples():
-    names = sorted([e[0] for e in EXAMPLES] + [REPAIR, DEBUG_BEFORE, DEBUG_AFTER])
+    names = sorted([e[0] for e in EXAMPLES] + [REPAIR, DEBUG_BEFORE, DEBUG_AFTER, LANGSMITH])
     for name in names:
         (TRACES / f"{name}.md").write_text(render_markdown(load(name)), encoding="utf-8")
 
@@ -258,6 +273,7 @@ def write_examples():
         REPAIR: "Rejected SQL is repaired (scripted model)",
         DEBUG_BEFORE: "A wrong answer, before it was fixed",
         DEBUG_AFTER: "The same question after the fix",
+        LANGSMITH: "The local trace of a run that is also public in LangSmith",
     }
     out = [
         "# Examples",
@@ -297,6 +313,15 @@ def write_examples():
     for name, title, _question, _overrides, note in EXAMPLES:
         if name > REPAIR:  # examples added after the debugging traces were numbered
             out += example_section(name, title, NOTES.get(name, note))
+    out += example_section(
+        LANGSMITH,
+        titles[LANGSMITH],
+        "This run was made with LangSmith tracing switched on, so the same run exists in two "
+        f"places: this local trace, and [a public LangSmith trace]({LANGSMITH_URL}). Nothing in "
+        "the code differs between the two; LangSmith is switched on with environment variables. "
+        "The README shows them side by side. This trace is kept as recorded and is not re-run, "
+        "because the LangSmith link belongs to this one run.",
+    )
     out += debugging_section()
     (ROOT / "docs" / "EXAMPLES.md").write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
     print("wrote docs/EXAMPLES.md and", len(names), "trace views")
@@ -401,6 +426,12 @@ NOTES: dict[str, str] = {
         "`verify_answer` found it in none of its sources and appended the note. It did not "
         "call the model again. The model does not always add the date, so re-running this "
         "example may produce an answer with no note, as in example 4."
+    ),
+    "14-ranking": (
+        "A ranking over an aggregate: average per student, ordered, top three. The expected "
+        "order is checked by hand against the seed data: the second Daniel Kim (91.33), Anna "
+        "Keller (84.5), Eva Novak (83.5). The two students named Daniel Kim are told apart by "
+        "email, and the top one is the one with the higher average."
     ),
     "11-missing-value": (
         "No course has this code. An average over no matching rows is one row holding NULL, "

@@ -30,6 +30,16 @@ uv run sqlqa ask "Which teacher has the highest average grade?"
 uv run sqlqa render-trace traces/<run>.json     # the trace as readable Markdown
 ```
 
+Two more commands are useful in a demo:
+
+```bash
+uv run sqlqa chat       # ask several questions, one after another
+uv run sqlqa schema     # print the schema text exactly as the model sees it
+```
+
+`chat` treats every question as a separate run. It does not remember earlier questions or
+answers, and says so when it starts. It prints the trace path after each answer.
+
 ## How it works
 
 ```mermaid
@@ -107,7 +117,7 @@ The reasoning behind each choice is in [docs/DESIGN.md](docs/DESIGN.md).
 | Database-agnostic design | [`src/sqlqa/db.py`](src/sqlqa/db.py) introspects the schema; everything university-specific is in [`university/`](university/) |
 | Tracing | [`src/sqlqa/tracing.py`](src/sqlqa/tracing.py), example traces in [`docs/traces/`](docs/traces/) |
 | Debugging and error handling | [`src/sqlqa/sql_guard.py`](src/sqlqa/sql_guard.py), [`src/sqlqa/filter_check.py`](src/sqlqa/filter_check.py), [`src/sqlqa/answer_check.py`](src/sqlqa/answer_check.py), the loops above, and the walkthrough in [docs/EXAMPLES.md](docs/EXAMPLES.md#debugging-a-wrong-answer) |
-| Unit tests | [`tests/`](tests/): 219 offline tests, plus 16 live evaluation questions |
+| Unit tests | [`tests/`](tests/): 234 offline tests, plus 17 live evaluation questions |
 | Code quality | One responsibility per module; see the layout below |
 | Production considerations | [docs/PRODUCTION.md](docs/PRODUCTION.md) |
 | Example queries and outputs | [docs/EXAMPLES.md](docs/EXAMPLES.md) |
@@ -127,7 +137,7 @@ src/sqlqa/            the agent; knows nothing about universities
   nodes.py            one method per node
   graph.py            wiring, routing and limits
   tracing.py          JSON trace and Markdown view
-  cli.py              the sqlqa command
+  cli.py              the sqlqa command: ask, chat, schema, render-trace
 university/           the demo database: schema, seed data, notes, golden questions
 tests/                offline tests with a scripted model; one live evaluation file
 docs/                 design, production notes, examples, committed traces
@@ -137,8 +147,8 @@ scripts/              make_examples.py regenerates docs/traces/ and docs/EXAMPLE
 ## Tests
 
 ```bash
-uv run pytest             # 219 tests, offline, about 3 seconds, no API key needed
-uv run pytest -m live     # 16 real questions against the real model (costs a few cents)
+uv run pytest             # 234 tests, offline, about 3 seconds, no API key needed
+uv run pytest -m live     # 17 real questions against the real model (costs a few cents)
 uv run ruff check .
 ```
 
@@ -156,10 +166,28 @@ run must have fetched from the database.
 
 Every run writes one JSON file to `traces/` with every node, every prompt and reply, the SQL, the
 guard's verdict, every returned row, timings and token counts. `sqlqa render-trace` turns it into
-Markdown. Twelve example traces, in both forms, are in [`docs/traces/`](docs/traces/).
+Markdown. Fourteen example traces, in both forms, are in [`docs/traces/`](docs/traces/).
+
+The local tracer is the default because it needs no account: it works offline, and a trace is a
+file that can be read, diffed and committed.
+
+### The same run in LangSmith
 
 LangSmith works as well, with no code change: set `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY`
-and `LANGSMITH_PROJECT` in `.env`.
+and `LANGSMITH_PROJECT` in `.env`. One real run was traced both ways at once:
+
+| | Where |
+| --- | --- |
+| Question | What is the average grade for the course with code 'Math201'? |
+| LangSmith | [public trace](https://smith.langchain.com/public/285d2736-f428-443d-ace4-156765e016b9/r/01a1cce5-2eca-7029-87c5-33f5ce8b2727) |
+| Local trace | [`docs/traces/15-same-run-as-langsmith.md`](docs/traces/15-same-run-as-langsmith.md) |
+
+![The run in LangSmith](docs/langsmith-run.png)
+
+Both show the same run: 4 model calls and the path
+`load_schema → generate_sql → validate_sql → execute_sql → check_filters → answer → generate_sql → validate_sql → execute_sql → answer → verify_answer`.
+The first query matched nothing, `check_filters` found the real spelling of the course code, and a
+second query returned the answer.
 
 ## Using a different database or model
 

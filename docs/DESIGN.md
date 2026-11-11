@@ -342,17 +342,21 @@ keeps the schema inside every prompt exactly as it was sent; the Markdown replac
 placeholder so the steps stay short.
 
 LangSmith needs no code. Setting `LANGSMITH_TRACING=true` and a key sends the same run there as
-well, because LangGraph and langchain report to it on their own.
+well, because LangGraph and langchain report to it on their own. One run was traced both ways at
+once; the README links its public LangSmith trace next to its local trace (example 15).
+
+The local tracer is the default because it needs no account and no network, and because a trace
+that is a file can be committed next to the code as evidence.
 
 ## Testing and evaluation
 
 Two kinds of test answer two different questions.
 
-- **Does the code do what it should?** 219 offline tests. The model is replaced by a scripted
+- **Does the code do what it should?** 234 offline tests. The model is replaced by a scripted
   stand-in (`tests/fakes.py`) that returns prepared replies in order and records every prompt. The
   database, the guard, the graph and the tracer are all real. These tests are exact and free, and
   they cannot say anything about the quality of a real model's SQL.
-- **Does the real model answer correctly?** 16 golden questions in
+- **Does the real model answer correctly?** 17 golden questions in
   `university/golden_questions.json`, run with `uv run pytest -m live`. Each lists the values a
   correct run must have fetched (for example `73.75`), and the expected status. Whole result sets
   are not compared, because a correct query that selects one extra column would fail. Two of
@@ -373,6 +377,7 @@ The live evaluation is not run by default, because it needs a key and costs mone
 | `anthropic:claude-haiku-5-5` (the default) | Current, with `check_filters` and two more questions | 16 of 17, then 17 of 17 | 2 |
 | `anthropic:claude-haiku-5-5` (the default) | Current, after the two question changes below | 16 of 16 | 1 |
 | `anthropic:claude-haiku-5-5` (the default) | Current, with `verify_answer` | 16 of 16 | 1 |
+| `anthropic:claude-haiku-5-5` (the default) | Current, with the ranking question added | 17 of 17 | 1 |
 
 - The one Opus failure was a real misreading of "latest semester". It is written up in
   [EXAMPLES.md](EXAMPLES.md#debugging-a-wrong-answer), and fixed by one line in the schema notes.
@@ -499,3 +504,10 @@ Small choices made without discussion, simplest option taken.
 - A figure followed by `%` matches a result value equal to it or to a hundredth of it.
 - Example 13 was copied from a live evaluation run, because the model does not add the unsupported
   date every time.
+- `sqlqa chat` is a loop around the same single-question run. It keeps no history, so each
+  question gets its own run and its own trace file, and a question that crashes does not end the
+  session.
+- `sqlqa schema` needs only `DATABASE_URL`. It prints the same text `load_schema` puts in the
+  prompt, including sample rows and notes as configured.
+- Example 15 is the local trace of the run that is also public in LangSmith. It is kept as
+  recorded and never re-run.

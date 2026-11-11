@@ -1,0 +1,349 @@
+{
+  "run_id": "20261112-001534-780b9f",
+  "started_at": "2026-11-12T00:15:34",
+  "question": "What is the average grade for the course with code 'Math201'?",
+  "model": "anthropic:claude-haiku-5-5",
+  "steps": [
+    {
+      "node": "load_schema",
+      "llm_calls": [],
+      "update": {
+        "schema": "SQL dialect: sqlite\n\nTable course_offerings\n  id: INTEGER, primary key\n  course_id: INTEGER, not null, references courses.id\n  teacher_id: INTEGER, not null, references teachers.id\n  semester_id: INTEGER, not null, references semesters.id\n  Sample rows (id, course_id, teacher_id, semester_id):\n    [1, 1, 1, 1]\n    [2, 1, 2, 1]\n    [3, 4, 3, 1]\n\nTable courses\n  id: INTEGER, primary key\n  code: TEXT, not null\n  title: TEXT, not null\n  credits: INTEGER, not null\n  Sample rows (id, code, title, credits):\n    [1, 'CS101', 'Introduction to Programming', 6]\n    [2, 'CS201', 'Data Structures', 6]\n    [3, 'CS301', 'Databases', 6]\n\nTable enrollments\n  id: INTEGER, primary key\n  student_id: INTEGER, not null, references students.id\n  offering_id: INTEGER, not null, references course_offerings.id\n  grade: REAL\n  Sample rows (id, student_id, offering_id, grade):\n    [1, 1, 1, 90.0]\n    [2, 2, 1, 70.0]\n    [3, 3, 1, 80.0]\n\nTable semesters\n  id: INTEGER, primary key\n  name: TEXT, not null\n  year: INTEGER, not null\n  term: TEXT, not null\n  start_date: DATE, not null\n  Sample rows (id, name, year, term, start_date):\n    [1, 'Fall 2025', 2025, 'Fall', '2025-09-01']\n    [2, 'Spring 2026', 2026, 'Spring', '2026-02-02']\n    [3, 'Fall 2026', 2026, 'Fall', '2026-09-07']\n\nTable students\n  id: INTEGER, primary key\n  name: TEXT, not null\n  email: TEXT, not null\n  Sample rows (id, name, email):\n    [1, 'Anna Keller', 'anna.keller@uni.example']\n    [2, 'Ben Okafor', 'ben.okafor@uni.example']\n    [3, 'Clara Rossi', 'clara.rossi@uni.example']\n\nTable teachers\n  id: INTEGER, primary key\n  name: TEXT, not null\n  Sample rows (id, name):\n    [1, 'Elena Markovic']\n    [2, 'David Chen']\n    [3, 'Sara Lindqvist']\n\nNotes:\n- A course offering is one course taught by one teacher in one semester.\n- A course can have several offerings in the same semester, each with a different teacher.\n- Grades are numbers from 0 to 100. A NULL grade means the enrollment is in progress and not graded yet.\n- A student can take the same course more than once, in different semesters.\n- Student names are not unique. The email identifies a student.\n- To order semesters in time, use start_date, not name.\n- The latest semester is the one with the latest start_date, whether or not it has grades yet.",
+        "tables": [
+          "course_offerings",
+          "courses",
+          "enrollments",
+          "semesters",
+          "students",
+          "teachers"
+        ],
+        "dialect": "sqlite"
+      },
+      "duration_ms": 10
+    },
+    {
+      "node": "generate_sql",
+      "llm_calls": [
+        {
+          "schema": "SqlDecision",
+          "messages": [
+            [
+              "system",
+              "You write SQL for a question-answering system. You are given a database schema and a request.\n\nRules for the query:\n- One read-only SELECT statement in the sqlite dialect. CTEs and subqueries are allowed.\n- Use only tables and columns that appear in the schema.\n- Read the notes at the end of the schema, if there are any. They say what the data means.\n- Sample rows show how values are written. They are not the full data. Write filter values in the same format.\n- When the request names a person or thing, also select a column that identifies it uniquely, because names can repeat.\n- When the query has to find which item a figure belongs to (the latest, the highest, the first), also select what that item is, so the answer can name it.\n- Do not add LIMIT unless the request asks for a top or bottom N.\n\nChoose a status:\n- \"sql\": you can write the query. Fill in `plan` and `sql`.\n- \"clarify\": the request cannot be mapped to the schema without guessing what the user means. Ask one question in `message`. Use this rarely: if a reasonable reading exists, take it and state the assumption in `plan`.\n- \"unanswerable\": the schema does not hold this information, or the request is not about this database. Explain in `message`.\n\nSchema:\nSQL dialect: sqlite\n\nTable course_offerings\n  id: INTEGER, primary key\n  course_id: INTEGER, not null, references courses.id\n  teacher_id: INTEGER, not null, references teachers.id\n  semester_id: INTEGER, not null, references semesters.id\n  Sample rows (id, course_id, teacher_id, semester_id):\n    [1, 1, 1, 1]\n    [2, 1, 2, 1]\n    [3, 4, 3, 1]\n\nTable courses\n  id: INTEGER, primary key\n  code: TEXT, not null\n  title: TEXT, not null\n  credits: INTEGER, not null\n  Sample rows (id, code, title, credits):\n    [1, 'CS101', 'Introduction to Programming', 6]\n    [2, 'CS201', 'Data Structures', 6]\n    [3, 'CS301', 'Databases', 6]\n\nTable enrollments\n  id: INTEGER, primary key\n  student_id: INTEGER, not null, references students.id\n  offering_id: INTEGER, not null, references course_offerings.id\n  grade: REAL\n  Sample rows (id, student_id, offering_id, grade):\n    [1, 1, 1, 90.0]\n    [2, 2, 1, 70.0]\n    [3, 3, 1, 80.0]\n\nTable semesters\n  id: INTEGER, primary key\n  name: TEXT, not null\n  year: INTEGER, not null\n  term: TEXT, not null\n  start_date: DATE, not null\n  Sample rows (id, name, year, term, start_date):\n    [1, 'Fall 2025', 2025, 'Fall', '2025-09-01']\n    [2, 'Spring 2026', 2026, 'Spring', '2026-02-02']\n    [3, 'Fall 2026', 2026, 'Fall', '2026-09-07']\n\nTable students\n  id: INTEGER, primary key\n  name: TEXT, not null\n  email: TEXT, not null\n  Sample rows (id, name, email):\n    [1, 'Anna Keller', 'anna.keller@uni.example']\n    [2, 'Ben Okafor', 'ben.okafor@uni.example']\n    [3, 'Clara Rossi', 'clara.rossi@uni.example']\n\nTable teachers\n  id: INTEGER, primary key\n  name: TEXT, not null\n  Sample rows (id, name):\n    [1, 'Elena Markovic']\n    [2, 'David Chen']\n    [3, 'Sara Lindqvist']\n\nNotes:\n- A course offering is one course taught by one teacher in one semester.\n- A course can have several offerings in the same semester, each with a different teacher.\n- Grades are numbers from 0 to 100. A NULL grade means the enrollment is in progress and not graded yet.\n- A student can take the same course more than once, in different semesters.\n- Student names are not unique. The email identifies a student.\n- To order semesters in time, use start_date, not name.\n- The latest semester is the one with the latest start_date, whether or not it has grades yet."
+            ],
+            [
+              "human",
+              "Question: What is the average grade for the course with code 'Math201'?"
+            ]
+          ],
+          "output": {
+            "status": "sql",
+            "plan": "Average the non-NULL grades across all enrollments in every offering of the course with code 'Math201', joining courses to course_offerings to enrollments. AVG ignores in-progress NULL grades, and the course code and title are selected so the result names the course.",
+            "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title",
+            "message": null
+          },
+          "raw": [
+            {
+              "thinking": "",
+              "type": "thinking"
+            },
+            {
+              "text": "{\"status\":\"sql\",\"plan\":\"Average the non-NULL grades across all enrollments in every offering of the course with code 'Math201', joining courses to course_offerings to enrollments. AVG ignores in-progress NULL grades, and the course code and title are selected so the result names the course.\",\"sql\":\"SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title\",\"message\":null}",
+              "type": "text"
+            }
+          ],
+          "usage": {
+            "input_tokens": 1967,
+            "output_tokens": 491,
+            "total_tokens": 2458,
+            "input_token_details": {
+              "cache_read": 0,
+              "cache_creation": 0,
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 0
+            },
+            "output_token_details": {
+              "reasoning": 282
+            }
+          },
+          "error": null,
+          "duration_ms": 2868
+        }
+      ],
+      "update": {
+        "llm_calls": 1,
+        "attempts": 1,
+        "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title",
+        "error": null,
+        "plan": "Average the non-NULL grades across all enrollments in every offering of the course with code 'Math201', joining courses to course_offerings to enrollments. AVG ignores in-progress NULL grades, and the course code and title are selected so the result names the course."
+      },
+      "duration_ms": 2868
+    },
+    {
+      "node": "validate_sql",
+      "llm_calls": [],
+      "update": {
+        "error": null
+      },
+      "duration_ms": 115
+    },
+    {
+      "node": "execute_sql",
+      "llm_calls": [],
+      "update": {
+        "pending": {
+          "reason": "Answer the user's question.",
+          "plan": "Average the non-NULL grades across all enrollments in every offering of the course with code 'Math201', joining courses to course_offerings to enrollments. AVG ignores in-progress NULL grades, and the course code and title are selected so the result names the course.",
+          "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title",
+          "columns": [
+            "code",
+            "title",
+            "average_grade"
+          ],
+          "rows": [],
+          "truncated": false,
+          "filter_check": null
+        },
+        "attempts": 0,
+        "error": null
+      },
+      "duration_ms": 0
+    },
+    {
+      "node": "check_filters",
+      "llm_calls": [],
+      "update": {
+        "queries": [
+          {
+            "reason": "Answer the user's question.",
+            "plan": "Average the non-NULL grades across all enrollments in every offering of the course with code 'Math201', joining courses to course_offerings to enrollments. AVG ignores in-progress NULL grades, and the course code and title are selected so the result names the course.",
+            "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title",
+            "columns": [
+              "code",
+              "title",
+              "average_grade"
+            ],
+            "rows": [],
+            "truncated": false,
+            "filter_check": {
+              "checked": [
+                {
+                  "filter": "courses.code = 'Math201'",
+                  "found": false,
+                  "detail": "no row has this value, but 'MATH201' exists (different case)"
+                }
+              ],
+              "not_checked": 0
+            }
+          }
+        ],
+        "pending": null
+      },
+      "duration_ms": 4
+    },
+    {
+      "node": "answer",
+      "llm_calls": [
+        {
+          "schema": "AnswerDecision",
+          "messages": [
+            [
+              "system",
+              "You answer a user's question from the results of SQL queries that were run on a database.\n\nRules for the answer:\n- Use only the results shown. Never invent a value.\n- Refer to a person by name, or as \"they\". The data does not say whether someone is a \"he\" or a \"she\", so do not use those words.\n- Be brief and plain, and include the figures.\n- If a query made an assumption (see its plan), say so.\n- If the results contain several different entities matching one name, report each one separately, told apart by a unique column.\n- If a result is NULL, the value is not available. Say that, and why if the schema notes explain it. Do not report it as zero.\n- A result with 0 rows or only NULLs is followed by a filter check: the database was asked whether each filter value in the query exists. Rely on it, do not guess.\n  - If it says a value does not exist, the query asked for something the data does not have. Say so, and mention the existing values it lists.\n  - If it shows the value exists in another form (for example a different case), or one of the listed values is clearly what the user meant, ask for another query that uses that value.\n  - If every checked value was found, the empty result is real: nothing matches that combination.\n- If a result is marked truncated, say that only the first rows are shown.\n\nSchema:\nSQL dialect: sqlite\n\nTable course_offerings\n  id: INTEGER, primary key\n  course_id: INTEGER, not null, references courses.id\n  teacher_id: INTEGER, not null, references teachers.id\n  semester_id: INTEGER, not null, references semesters.id\n  Sample rows (id, course_id, teacher_id, semester_id):\n    [1, 1, 1, 1]\n    [2, 1, 2, 1]\n    [3, 4, 3, 1]\n\nTable courses\n  id: INTEGER, primary key\n  code: TEXT, not null\n  title: TEXT, not null\n  credits: INTEGER, not null\n  Sample rows (id, code, title, credits):\n    [1, 'CS101', 'Introduction to Programming', 6]\n    [2, 'CS201', 'Data Structures', 6]\n    [3, 'CS301', 'Databases', 6]\n\nTable enrollments\n  id: INTEGER, primary key\n  student_id: INTEGER, not null, references students.id\n  offering_id: INTEGER, not null, references course_offerings.id\n  grade: REAL\n  Sample rows (id, student_id, offering_id, grade):\n    [1, 1, 1, 90.0]\n    [2, 2, 1, 70.0]\n    [3, 3, 1, 80.0]\n\nTable semesters\n  id: INTEGER, primary key\n  name: TEXT, not null\n  year: INTEGER, not null\n  term: TEXT, not null\n  start_date: DATE, not null\n  Sample rows (id, name, year, term, start_date):\n    [1, 'Fall 2025', 2025, 'Fall', '2025-09-01']\n    [2, 'Spring 2026', 2026, 'Spring', '2026-02-02']\n    [3, 'Fall 2026', 2026, 'Fall', '2026-09-07']\n\nTable students\n  id: INTEGER, primary key\n  name: TEXT, not null\n  email: TEXT, not null\n  Sample rows (id, name, email):\n    [1, 'Anna Keller', 'anna.keller@uni.example']\n    [2, 'Ben Okafor', 'ben.okafor@uni.example']\n    [3, 'Clara Rossi', 'clara.rossi@uni.example']\n\nTable teachers\n  id: INTEGER, primary key\n  name: TEXT, not null\n  Sample rows (id, name):\n    [1, 'Elena Markovic']\n    [2, 'David Chen']\n    [3, 'Sara Lindqvist']\n\nNotes:\n- A course offering is one course taught by one teacher in one semester.\n- A course can have several offerings in the same semester, each with a different teacher.\n- Grades are numbers from 0 to 100. A NULL grade means the enrollment is in progress and not graded yet.\n- A student can take the same course more than once, in different semesters.\n- Student names are not unique. The email identifies a student.\n- To order semesters in time, use start_date, not name.\n- The latest semester is the one with the latest start_date, whether or not it has grades yet."
+            ],
+            [
+              "human",
+              "Question: What is the average grade for the course with code 'Math201'?\n\nQuery 1\nReason: Answer the user's question.\nPlan: Average the non-NULL grades across all enrollments in every offering of the course with code 'Math201', joining courses to course_offerings to enrollments. AVG ignores in-progress NULL grades, and the course code and title are selected so the result names the course.\nSQL: SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title\nResult: 0 rows. The query matched nothing.\nFilter check (the database was asked whether each filter value exists):\n- courses.code = 'Math201': no row has this value, but 'MATH201' exists (different case)\n\n1 of 3 queries have been used. Choose a status:\n- \"answer\": the results are enough. Write the answer.\n- \"need_query\": the question cannot be answered without another query. Say in `reason` what it must find and why. Ask only when the answer truly depends on it."
+            ]
+          ],
+          "output": {
+            "status": "need_query",
+            "answer": null,
+            "reason": "The filter check found no courses.code value 'Math201', but 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, and report that the code was matched case-insensitively."
+          },
+          "raw": "{\"status\":\"need_query\",\"answer\":null,\"reason\":\"The filter check found no courses.code value 'Math201', but 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, and report that the code was matched case-insensitively.\"}",
+          "usage": {
+            "input_tokens": 2246,
+            "output_tokens": 99,
+            "total_tokens": 2345,
+            "input_token_details": {
+              "cache_read": 0,
+              "cache_creation": 0,
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 0
+            },
+            "output_token_details": {
+              "reasoning": 0
+            }
+          },
+          "error": null,
+          "duration_ms": 1261
+        }
+      ],
+      "update": {
+        "llm_calls": 2,
+        "reason": "The filter check found no courses.code value 'Math201', but 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, and report that the code was matched case-insensitively.",
+        "sql": null,
+        "error": null
+      },
+      "duration_ms": 1261
+    },
+    {
+      "node": "generate_sql",
+      "llm_calls": [
+        {
+          "schema": "SqlDecision",
+          "messages": [
+            [
+              "system",
+              "You write SQL for a question-answering system. You are given a database schema and a request.\n\nRules for the query:\n- One read-only SELECT statement in the sqlite dialect. CTEs and subqueries are allowed.\n- Use only tables and columns that appear in the schema.\n- Read the notes at the end of the schema, if there are any. They say what the data means.\n- Sample rows show how values are written. They are not the full data. Write filter values in the same format.\n- When the request names a person or thing, also select a column that identifies it uniquely, because names can repeat.\n- When the query has to find which item a figure belongs to (the latest, the highest, the first), also select what that item is, so the answer can name it.\n- Do not add LIMIT unless the request asks for a top or bottom N.\n\nChoose a status:\n- \"sql\": you can write the query. Fill in `plan` and `sql`.\n- \"clarify\": the request cannot be mapped to the schema without guessing what the user means. Ask one question in `message`. Use this rarely: if a reasonable reading exists, take it and state the assumption in `plan`.\n- \"unanswerable\": the schema does not hold this information, or the request is not about this database. Explain in `message`.\n\nSchema:\nSQL dialect: sqlite\n\nTable course_offerings\n  id: INTEGER, primary key\n  course_id: INTEGER, not null, references courses.id\n  teacher_id: INTEGER, not null, references teachers.id\n  semester_id: INTEGER, not null, references semesters.id\n  Sample rows (id, course_id, teacher_id, semester_id):\n    [1, 1, 1, 1]\n    [2, 1, 2, 1]\n    [3, 4, 3, 1]\n\nTable courses\n  id: INTEGER, primary key\n  code: TEXT, not null\n  title: TEXT, not null\n  credits: INTEGER, not null\n  Sample rows (id, code, title, credits):\n    [1, 'CS101', 'Introduction to Programming', 6]\n    [2, 'CS201', 'Data Structures', 6]\n    [3, 'CS301', 'Databases', 6]\n\nTable enrollments\n  id: INTEGER, primary key\n  student_id: INTEGER, not null, references students.id\n  offering_id: INTEGER, not null, references course_offerings.id\n  grade: REAL\n  Sample rows (id, student_id, offering_id, grade):\n    [1, 1, 1, 90.0]\n    [2, 2, 1, 70.0]\n    [3, 3, 1, 80.0]\n\nTable semesters\n  id: INTEGER, primary key\n  name: TEXT, not null\n  year: INTEGER, not null\n  term: TEXT, not null\n  start_date: DATE, not null\n  Sample rows (id, name, year, term, start_date):\n    [1, 'Fall 2025', 2025, 'Fall', '2025-09-01']\n    [2, 'Spring 2026', 2026, 'Spring', '2026-02-02']\n    [3, 'Fall 2026', 2026, 'Fall', '2026-09-07']\n\nTable students\n  id: INTEGER, primary key\n  name: TEXT, not null\n  email: TEXT, not null\n  Sample rows (id, name, email):\n    [1, 'Anna Keller', 'anna.keller@uni.example']\n    [2, 'Ben Okafor', 'ben.okafor@uni.example']\n    [3, 'Clara Rossi', 'clara.rossi@uni.example']\n\nTable teachers\n  id: INTEGER, primary key\n  name: TEXT, not null\n  Sample rows (id, name):\n    [1, 'Elena Markovic']\n    [2, 'David Chen']\n    [3, 'Sara Lindqvist']\n\nNotes:\n- A course offering is one course taught by one teacher in one semester.\n- A course can have several offerings in the same semester, each with a different teacher.\n- Grades are numbers from 0 to 100. A NULL grade means the enrollment is in progress and not graded yet.\n- A student can take the same course more than once, in different semesters.\n- Student names are not unique. The email identifies a student.\n- To order semesters in time, use start_date, not name.\n- The latest semester is the one with the latest start_date, whether or not it has grades yet."
+            ],
+            [
+              "human",
+              "Question: What is the average grade for the course with code 'Math201'?\n\nQueries already run:\n\nQuery 1\nReason: Answer the user's question.\nPlan: Average the non-NULL grades across all enrollments in every offering of the course with code 'Math201', joining courses to course_offerings to enrollments. AVG ignores in-progress NULL grades, and the course code and title are selected so the result names the course.\nSQL: SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title\nResult: 0 rows. The query matched nothing.\nFilter check (the database was asked whether each filter value exists):\n- courses.code = 'Math201': no row has this value, but 'MATH201' exists (different case)\n\nRequest for the next query: The filter check found no courses.code value 'Math201', but 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, and report that the code was matched case-insensitively."
+            ]
+          ],
+          "output": {
+            "status": "sql",
+            "plan": "The filter 'Math201' matched no rows, but 'MATH201' exists with different case, so this query uses 'MATH201' as the course code. It averages the non-NULL grades across all enrollments in every offering of that course, ignoring in-progress NULL grades. The code and title are selected so the result names the course. The code was matched case-insensitively, as the user asked.",
+            "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code, c.title",
+            "message": null
+          },
+          "raw": [
+            {
+              "thinking": "",
+              "type": "thinking"
+            },
+            {
+              "text": "{\"status\":\"sql\",\"plan\":\"The filter 'Math201' matched no rows, but 'MATH201' exists with different case, so this query uses 'MATH201' as the course code. It averages the non-NULL grades across all enrollments in every offering of that course, ignoring in-progress NULL grades. The code and title are selected so the result names the course. The code was matched case-insensitively, as the user asked.\",\"sql\":\"SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code, c.title\",\"message\":null}",
+              "type": "text"
+            }
+          ],
+          "usage": {
+            "input_tokens": 2343,
+            "output_tokens": 384,
+            "total_tokens": 2727,
+            "input_token_details": {
+              "cache_read": 0,
+              "cache_creation": 0,
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 0
+            },
+            "output_token_details": {
+              "reasoning": 136
+            }
+          },
+          "error": null,
+          "duration_ms": 2831
+        }
+      ],
+      "update": {
+        "llm_calls": 3,
+        "attempts": 1,
+        "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code, c.title",
+        "error": null,
+        "plan": "The filter 'Math201' matched no rows, but 'MATH201' exists with different case, so this query uses 'MATH201' as the course code. It averages the non-NULL grades across all enrollments in every offering of that course, ignoring in-progress NULL grades. The code and title are selected so the result names the course. The code was matched case-insensitively, as the user asked."
+      },
+      "duration_ms": 2832
+    },
+    {
+      "node": "validate_sql",
+      "llm_calls": [],
+      "update": {
+        "error": null
+      },
+      "duration_ms": 1
+    },
+    {
+      "node": "execute_sql",
+      "llm_calls": [],
+      "update": {
+        "queries": [
+          {
+            "reason": "The filter check found no courses.code value 'Math201', but 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, and report that the code was matched case-insensitively.",
+            "plan": "The filter 'Math201' matched no rows, but 'MATH201' exists with different case, so this query uses 'MATH201' as the course code. It averages the non-NULL grades across all enrollments in every offering of that course, ignoring in-progress NULL grades. The code and title are selected so the result names the course. The code was matched case-insensitively, as the user asked.",
+            "sql": "SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code, c.title",
+            "columns": [
+              "code",
+              "title",
+              "average_grade"
+            ],
+            "rows": [
+              [
+                "MATH201",
+                "Linear Algebra",
+                86.0
+              ]
+            ],
+            "truncated": false,
+            "filter_check": null
+          }
+        ],
+        "attempts": 0,
+        "error": null
+      },
+      "duration_ms": 1
+    },
+    {
+      "node": "answer",
+      "llm_calls": [
+        {
+          "schema": "AnswerDecision",
+          "messages": [
+            [
+              "system",
+              "You answer a user's question from the results of SQL queries that were run on a database.\n\nRules for the answer:\n- Use only the results shown. Never invent a value.\n- Refer to a person by name, or as \"they\". The data does not say whether someone is a \"he\" or a \"she\", so do not use those words.\n- Be brief and plain, and include the figures.\n- If a query made an assumption (see its plan), say so.\n- If the results contain several different entities matching one name, report each one separately, told apart by a unique column.\n- If a result is NULL, the value is not available. Say that, and why if the schema notes explain it. Do not report it as zero.\n- A result with 0 rows or only NULLs is followed by a filter check: the database was asked whether each filter value in the query exists. Rely on it, do not guess.\n  - If it says a value does not exist, the query asked for something the data does not have. Say so, and mention the existing values it lists.\n  - If it shows the value exists in another form (for example a different case), or one of the listed values is clearly what the user meant, ask for another query that uses that value.\n  - If every checked value was found, the empty result is real: nothing matches that combination.\n- If a result is marked truncated, say that only the first rows are shown.\n\nSchema:\nSQL dialect: sqlite\n\nTable course_offerings\n  id: INTEGER, primary key\n  course_id: INTEGER, not null, references courses.id\n  teacher_id: INTEGER, not null, references teachers.id\n  semester_id: INTEGER, not null, references semesters.id\n  Sample rows (id, course_id, teacher_id, semester_id):\n    [1, 1, 1, 1]\n    [2, 1, 2, 1]\n    [3, 4, 3, 1]\n\nTable courses\n  id: INTEGER, primary key\n  code: TEXT, not null\n  title: TEXT, not null\n  credits: INTEGER, not null\n  Sample rows (id, code, title, credits):\n    [1, 'CS101', 'Introduction to Programming', 6]\n    [2, 'CS201', 'Data Structures', 6]\n    [3, 'CS301', 'Databases', 6]\n\nTable enrollments\n  id: INTEGER, primary key\n  student_id: INTEGER, not null, references students.id\n  offering_id: INTEGER, not null, references course_offerings.id\n  grade: REAL\n  Sample rows (id, student_id, offering_id, grade):\n    [1, 1, 1, 90.0]\n    [2, 2, 1, 70.0]\n    [3, 3, 1, 80.0]\n\nTable semesters\n  id: INTEGER, primary key\n  name: TEXT, not null\n  year: INTEGER, not null\n  term: TEXT, not null\n  start_date: DATE, not null\n  Sample rows (id, name, year, term, start_date):\n    [1, 'Fall 2025', 2025, 'Fall', '2025-09-01']\n    [2, 'Spring 2026', 2026, 'Spring', '2026-02-02']\n    [3, 'Fall 2026', 2026, 'Fall', '2026-09-07']\n\nTable students\n  id: INTEGER, primary key\n  name: TEXT, not null\n  email: TEXT, not null\n  Sample rows (id, name, email):\n    [1, 'Anna Keller', 'anna.keller@uni.example']\n    [2, 'Ben Okafor', 'ben.okafor@uni.example']\n    [3, 'Clara Rossi', 'clara.rossi@uni.example']\n\nTable teachers\n  id: INTEGER, primary key\n  name: TEXT, not null\n  Sample rows (id, name):\n    [1, 'Elena Markovic']\n    [2, 'David Chen']\n    [3, 'Sara Lindqvist']\n\nNotes:\n- A course offering is one course taught by one teacher in one semester.\n- A course can have several offerings in the same semester, each with a different teacher.\n- Grades are numbers from 0 to 100. A NULL grade means the enrollment is in progress and not graded yet.\n- A student can take the same course more than once, in different semesters.\n- Student names are not unique. The email identifies a student.\n- To order semesters in time, use start_date, not name.\n- The latest semester is the one with the latest start_date, whether or not it has grades yet."
+            ],
+            [
+              "human",
+              "Question: What is the average grade for the course with code 'Math201'?\n\nQuery 1\nReason: Answer the user's question.\nPlan: Average the non-NULL grades across all enrollments in every offering of the course with code 'Math201', joining courses to course_offerings to enrollments. AVG ignores in-progress NULL grades, and the course code and title are selected so the result names the course.\nSQL: SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'Math201' GROUP BY c.id, c.code, c.title\nResult: 0 rows. The query matched nothing.\nFilter check (the database was asked whether each filter value exists):\n- courses.code = 'Math201': no row has this value, but 'MATH201' exists (different case)\n\nQuery 2\nReason: The filter check found no courses.code value 'Math201', but 'MATH201' exists with different case. Run the same average-grade query using c.code = 'MATH201' to get the average grade for that course, and report that the code was matched case-insensitively.\nPlan: The filter 'Math201' matched no rows, but 'MATH201' exists with different case, so this query uses 'MATH201' as the course code. It averages the non-NULL grades across all enrollments in every offering of that course, ignoring in-progress NULL grades. The code and title are selected so the result names the course. The code was matched case-insensitively, as the user asked.\nSQL: SELECT c.code, c.title, AVG(e.grade) AS average_grade FROM courses c JOIN course_offerings co ON co.course_id = c.id JOIN enrollments e ON e.offering_id = co.id WHERE c.code = 'MATH201' GROUP BY c.id, c.code, c.title\nResult: 1 row(s), columns: code, title, average_grade\n[\"MATH201\", \"Linear Algebra\", 86.0]\n\n2 of 3 queries have been used. Choose a status:\n- \"answer\": the results are enough. Write the answer.\n- \"need_query\": the question cannot be answered without another query. Say in `reason` what it must find and why. Ask only when the answer truly depends on it."
+            ]
+          ],
+          "output": {
+            "status": "answer",
+            "answer": "The average grade for the course with code 'Math201' is 86.0. The exact code in the data is 'MATH201' (Linear Algebra), so I matched it case-insensitively. In-progress enrollments with no grade yet were excluded from the average.",
+            "reason": null
+          },
+          "raw": "{\"status\":\"answer\",\"answer\":\"The average grade for the course with code 'Math201' is 86.0. The exact code in the data is 'MATH201' (Linear Algebra), so I matched it case-insensitively. In-progress enrollments with no grade yet were excluded from the average.\",\"reason\":null}",
+          "usage": {
+            "input_tokens": 2610,
+            "output_tokens": 99,
+            "total_tokens": 2709,
+            "input_token_details": {
+              "cache_read": 0,
+              "cache_creation": 0,
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 0
+            },
+            "output_token_details": {
+              "reasoning": 0
+            }
+          },
+          "error": null,
+          "duration_ms": 1253
+        }
+      ],
+      "update": {
+        "llm_calls": 4,
+        "status": "answered",
+        "answer": "The average grade for the course with code 'Math201' is 86.0. The exact code in the data is 'MATH201' (Linear Algebra), so I matched it case-insensitively. In-progress enrollments with no grade yet were excluded from the average."
+      },
+      "duration_ms": 1253
+    },
+    {
+      "node": "verify_answer",
+      "llm_calls": [],
+      "update": {
+        "verification": {
+          "checked": 1,
+          "unsupported": []
+        }
+      },
+      "duration_ms": 1
+    }
+  ],
+  "status": "answered",
+  "answer": "The average grade for the course with code 'Math201' is 86.0. The exact code in the data is 'MATH201' (Linear Algebra), so I matched it case-insensitively. In-progress enrollments with no grade yet were excluded from the average.",
+  "error": null,
+  "duration_ms": 8434
+}
