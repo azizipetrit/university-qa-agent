@@ -1,4 +1,4 @@
-# Trace 20261111-220506-46bd59
+# Trace 20261111-222513-aeedb2
 
 **Question:** What is Daniel Kim's average grade?
 
@@ -6,15 +6,11 @@
 
 **Answer:**
 
-> There are two students named Daniel Kim. Their averages differ:
-> - Daniel Kim (daniel.kim@uni.example): average grade 62.5, from 2 graded enrollments.
-> - Daniel Kim (daniel.kim2@uni.example): average grade about 91.33, from 3 graded enrollments.
-> 
-> These averages count only graded enrollments. In-progress enrollments with no grade yet (NULL) are left out.
+> There are two students named Daniel Kim, told apart by email. daniel.kim@uni.example (id 4) has an average grade of 62.5. daniel.kim2@uni.example (id 6) has an average grade of about 91.33. In-progress enrollments with no grade yet were left out of each average.
 
 | Model | Model calls | Queries run | Tokens in / out | Duration |
 |---|---|---|---|---|
-| anthropic:claude-opus-5-5 | 2 | 1 | 4069 / 403 | 6.0 s |
+| anthropic:claude-haiku-5-5 | 2 | 1 | 4058 / 623 | 4.4 s |
 
 ## Path
 
@@ -97,7 +93,7 @@ Notes:
 
 ## Steps
 
-### 1. load_schema (7 ms)
+### 1. load_schema (9 ms)
 
 **State changes:**
 
@@ -106,9 +102,9 @@ Notes:
 - `dialect`: "sqlite"
 
 
-### 2. generate_sql (3.2 s)
+### 2. generate_sql (3.3 s)
 
-**Model call** (SqlDecision, 1919 tokens in, 242 out, 3.2 s)
+**Model call** (SqlDecision, 1919 tokens in, 507 out, 3.3 s)
 
 *Prompt, system:*
 
@@ -143,8 +139,8 @@ Question: What is Daniel Kim's average grade?
 ```json
 {
   "status": "sql",
-  "plan": "Average the graded (non-NULL) enrollments for students named Daniel Kim, grouped per student (with email) since names are not unique; in-progress enrollments with NULL grades are ignored.",
-  "sql": "SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM students s LEFT JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' GROUP BY s.id, s.name, s.email",
+  "plan": "Average the non-NULL grades of Daniel Kim's enrollments, grouped by student so that people with the same name are kept apart. The email and id identify each student. AVG ignores in-progress NULL grades, and the name match is case-insensitive.",
+  "sql": "SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' COLLATE NOCASE GROUP BY s.id, s.name, s.email",
   "message": null
 }
 ```
@@ -156,11 +152,11 @@ Question: What is Daniel Kim's average grade?
 - `sql`:
 
 ```sql
-SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM students s LEFT JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' GROUP BY s.id, s.name, s.email
+SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' COLLATE NOCASE GROUP BY s.id, s.name, s.email
 ```
 
 - `error`: null
-- `plan`: "Average the graded (non-NULL) enrollments for students named Daniel Kim, grouped per student (with email) since names are not unique; in-progress enrollments with NULL grades are ignored."
+- `plan`: "Average the non-NULL grades of Daniel Kim's enrollments, grouped by student so that people with the same name are kept apart. The email and id identify each student. AVG ignores in-progress NULL grades, and the name match is case-insensitive."
 
 
 ### 3. validate_sql (1 ms)
@@ -176,25 +172,25 @@ SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade, COUNT(e.grade) AS g
 
 - `queries`: one query recorded
   - reason: Answer the user's question.
-  - plan: Average the graded (non-NULL) enrollments for students named Daniel Kim, grouped per student (with email) since names are not unique; in-progress enrollments with NULL grades are ignored.
+  - plan: Average the non-NULL grades of Daniel Kim's enrollments, grouped by student so that people with the same name are kept apart. The email and id identify each student. AVG ignores in-progress NULL grades, and the name match is case-insensitive.
   - result: 2 row(s)
 
 ```sql
-SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM students s LEFT JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' GROUP BY s.id, s.name, s.email
+SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' COLLATE NOCASE GROUP BY s.id, s.name, s.email
 ```
 
-| id | name | email | average_grade | graded_enrollments |
-|---|---|---|---|---|
-| 4 | Daniel Kim | daniel.kim@uni.example | 62.5 | 2 |
-| 6 | Daniel Kim | daniel.kim2@uni.example | 91.33333333333333 | 3 |
+| id | name | email | average_grade |
+|---|---|---|---|
+| 4 | Daniel Kim | daniel.kim@uni.example | 62.5 |
+| 6 | Daniel Kim | daniel.kim2@uni.example | 91.33333333333333 |
 
 - `attempts`: 0
 - `error`: null
 
 
-### 5. answer (2.8 s)
+### 5. answer (1.1 s)
 
-**Model call** (AnswerDecision, 2150 tokens in, 161 out, 2.8 s)
+**Model call** (AnswerDecision, 2139 tokens in, 116 out, 1.1 s)
 
 *Prompt, system:*
 
@@ -222,11 +218,11 @@ Question: What is Daniel Kim's average grade?
 
 Query 1
 Reason: Answer the user's question.
-Plan: Average the graded (non-NULL) enrollments for students named Daniel Kim, grouped per student (with email) since names are not unique; in-progress enrollments with NULL grades are ignored.
-SQL: SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM students s LEFT JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' GROUP BY s.id, s.name, s.email
-Result: 2 row(s), columns: id, name, email, average_grade, graded_enrollments
-[4, "Daniel Kim", "daniel.kim@uni.example", 62.5, 2]
-[6, "Daniel Kim", "daniel.kim2@uni.example", 91.33333333333333, 3]
+Plan: Average the non-NULL grades of Daniel Kim's enrollments, grouped by student so that people with the same name are kept apart. The email and id identify each student. AVG ignores in-progress NULL grades, and the name match is case-insensitive.
+SQL: SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' COLLATE NOCASE GROUP BY s.id, s.name, s.email
+Result: 2 row(s), columns: id, name, email, average_grade
+[4, "Daniel Kim", "daniel.kim@uni.example", 62.5]
+[6, "Daniel Kim", "daniel.kim2@uni.example", 91.33333333333333]
 
 1 of 3 queries have been used. Choose a status:
 - "answer": the results are enough. Write the answer.
@@ -238,7 +234,7 @@ Result: 2 row(s), columns: id, name, email, average_grade, graded_enrollments
 ```json
 {
   "status": "answer",
-  "answer": "There are two students named Daniel Kim. Their averages differ:\n- Daniel Kim (daniel.kim@uni.example): average grade 62.5, from 2 graded enrollments.\n- Daniel Kim (daniel.kim2@uni.example): average grade about 91.33, from 3 graded enrollments.\n\nThese averages count only graded enrollments. In-progress enrollments with no grade yet (NULL) are left out.",
+  "answer": "There are two students named Daniel Kim, told apart by email. daniel.kim@uni.example (id 4) has an average grade of 62.5. daniel.kim2@uni.example (id 6) has an average grade of about 91.33. In-progress enrollments with no grade yet were left out of each average.",
   "reason": null
 }
 ```
@@ -249,8 +245,4 @@ Result: 2 row(s), columns: id, name, email, average_grade, graded_enrollments
 - `status`: "answered"
 - `answer`:
 
-> There are two students named Daniel Kim. Their averages differ:
-> - Daniel Kim (daniel.kim@uni.example): average grade 62.5, from 2 graded enrollments.
-> - Daniel Kim (daniel.kim2@uni.example): average grade about 91.33, from 3 graded enrollments.
-> 
-> These averages count only graded enrollments. In-progress enrollments with no grade yet (NULL) are left out.
+> There are two students named Daniel Kim, told apart by email. daniel.kim@uni.example (id 4) has an average grade of 62.5. daniel.kim2@uni.example (id 6) has an average grade of about 91.33. In-progress enrollments with no grade yet were left out of each average.

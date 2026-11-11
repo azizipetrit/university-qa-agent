@@ -1,8 +1,8 @@
 {
-  "run_id": "20261111-220314-e7ac20",
-  "started_at": "2026-11-11T22:03:14",
+  "run_id": "20261111-222534-265186",
+  "started_at": "2026-11-11T22:25:34",
   "question": "What is the average grade in the latest semester?",
-  "model": "anthropic:claude-opus-5-5",
+  "model": "anthropic:claude-haiku-5-5",
   "steps": [
     {
       "node": "load_schema",
@@ -19,7 +19,7 @@
         ],
         "dialect": "sqlite"
       },
-      "duration_ms": 10
+      "duration_ms": 8
     },
     {
       "node": "generate_sql",
@@ -38,25 +38,25 @@
           ],
           "output": {
             "status": "sql",
-            "plan": "Find the semester with the latest start_date, then average the non-NULL grades of all enrollments in offerings of that semester. If that semester has no grades yet, the average comes back NULL.",
-            "sql": "WITH latest AS (SELECT id, name, start_date FROM semesters ORDER BY start_date DESC LIMIT 1) SELECT l.id AS semester_id, l.name AS semester_name, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM latest l LEFT JOIN course_offerings co ON co.semester_id = l.id LEFT JOIN enrollments e ON e.offering_id = co.id GROUP BY l.id, l.name",
+            "plan": "Find the latest semester by the maximum start_date, join enrollments to their course offerings, and average the grades in that semester. AVG skips NULL grades, so in-progress enrollments are excluded from the average.",
+            "sql": "SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id WHERE o.semester_id = (SELECT id FROM semesters WHERE start_date = (SELECT MAX(start_date) FROM semesters))",
             "message": null
           },
           "raw": [
             {
-              "signature": "CAQSiwYKEAgTGAI4AUIIdGhpbmtpbmcSDMW7wl2biOaieJnOuRoMfBsF0QqEsrqopS/MIjDbBCs6PiYrgoXtWeBaF7w6NYejcRpjvY5mFMzwPzYhuQAxh0lnsXQUsEVVde5x6sIqqAXUDvG7G6VquM0rrXK7sISeLDY8zbU452uKB1fudlvhj+QOKlfSP1XyApt5KuOwFi7UOAlZ8eLTcqsqvG9TwG1NbAUvo2lWGhjf4HSsyv0Ie6TBc5ghUEIRQOznp/ov2dAuJeQAnQwVaUBNMH4EoLE/epWQ7qLl3wwgOHkiGZ9evs6zmWyZok1kRuViR58TfvCNAlamTf7aZyrnIOIWpzcJTi3hb0cnVmpyYxKAAvWGyxswpXrKNxAuJnHB7sO4BHInSuVAHHQmiinr+XX3bgrpgR0k5770RCQw0mXR7mW2simnPNBnqXRD+19bOciLyuQDq6Qz9mQAMqo0SYuv6qSyDPR63jsMe6ke9AvDmBlQoMPrFhFxSCj/8iq1DvvzszpMAii1Z8z04DRr+CDTlUBdIW0k3lNDjCZpzvF/skyR2AfE5lCadTJMeEBz6EF3ov5Re3eUUq4wlt+DSOnO6MaBUVpglY7Xlph+cUrQpgMCQJCCxN5xbGn+9QpZU2DYS/MjeJThlWV0miieR4Y6zjBA5UEnPGGRcIjjs3+tS0CB56HVzGOu45a5atznmRrePbLgbMVwfNjaSj24SR9J3OBeZ/wvJSmLerVMXBQAWJBS2/Vjm1hmU7Rqo5yhxYQBJfyFN8dmXIb3cgBARCdkQPItPRCpYjZvJsBLkfiNX1xh3GXwRnqsGTdv1ixNw9bLLa5+HKJTiweTXSHbTk3WPBakqRMGJgrvVGg0gl1aLQ/e6WnUcvVUSXQcuDZRaV+xY6eoNEJBz7owkQVX+EZBZtPcTCxaVHcJalFsCHbYU8AUFvIlsntuAbx4hEsxnHpLbEIVuSaoIxrTUwM5s0MIU/YDgzcdjP0ptwCmCaGjQ4P1CzhpqzfyvQWCywS3V8qLQf8xAbk9Saui9hgB",
+              "signature": "CAQShwoKEAgTGAI4AUIIdGhpbmtpbmcSDAN/dpk9ir/APQ7uRRoM4RGsnCd6JSx7WpopIjBf3E0ho04tpuyB7en7/fbEwM+gXvJqqcleiEa5V+pkms+1viWVxggPt8voHTGLlFsqpAkzGg1IRbcUsaW79gyc34PdxZEABv/iTwmHSeJbZ94GQyRRMZ17EfcrGcisCA7JRsSGca1Ggr8sRjON8kWeNGrHwWlnAZuxfSU6+eoj7Hf907/7x70o0hOX3otYzLdUjJ/cst+PwcBK+tqZbFYFmr73haArNB3MiTe/Asp5II89zGh1AkrkHqACot9BcBZwwQkBfWRwXv+1rV7J1+oWdcpr6bWnzG112fUjSfT/i8ZlNiK/cRXDLAbodqnFflrw0YtT/PeGrrV2X5YVHNYvSP7D2r1jnxs1FxRi2TweUQ9QYjfX4HH+z4yIDplUKm26BNSxKGrn+E2FZ9CSC2gC/DTp+qhUoMpIjvOZw6TJr0pR9/ifAaOw7tEcREZEkI3E37xn+pEzTAWBckhNWyDTotFYeyhGeYs6wgfsg5vEGoqnF2J958quyOSYB8vRUGY6MGqtVvZrsaZvikzcEZHBIwi6SevlINVPJ6T24JbkIoK+2e/A3oU2a/ha+oVRdsbFOTfsJJtfulRqwDMzPTjjJsEZc/1VbaoStzKJo3xEDlE70xyZe91lxcymdRakHZl8kjfmSkh/fw8NBEiInb+v/ng/sUQbBzP0qf3eLkGAcUheEKMQNkQ0NetdslQ1hSXlxtGgJmGp+ndm/6nHIrBwx6NAVtkS954vla+rWNubEPMEUZoqdYl+rZqYHV5U/0zcSV2mI3NyKNzrmH9TmomYLGdSpq8Rv9hxaAWS5zNtHKEAp890tJbXuGiL7dj77cTdK5QNMva+ljS6Vh8PiWF/P0IJ8pcbbTg+E0XVWmHQE3q3DsfedAxcLugfV8lUCPTkI0LYuh9nHB7TBuX9ZhG82xCorzpSsQAPuhMi8AYGCt/qvUjdUDV8O7E5eTO2+Cjv/rplQJFwDgTL3sdAzRVbURE6vyWIka8I16S8J4wl7tMmqltjAI2IeDVDilLOGoOIF/tz20Cu/W8sNSr9WevPdX+9x54jv8+WVljdYn9w+ez7ME7JRH8oGcHm/OOo5ihtLEm+ZbuiZCmi78+nRmPvd0JaFpMYq9wmomG67uuO6EYEMqK791JPybAsD4ya3zHWuq5BHVZYt9l+xJ2go2cMd6tV0tmbDbgZ/GvddyyslB7vjSG2Myktr55Q9liWLWWV0xnMnTWjcpd0LF/IzNTuvNSpX25cJ+l4UNwM2Ld/qbHgSIDsmfa08m6iRjTD5JiyDpZBnw8xQfHoAsaAjftd3R5m4/f5EK715ywEonpC3UcBkQ1o9jwqeBtOTV+AZ3kgmhcKbUyCgw3VvPuRCLnm+y1H7vZyMiU6J0czqJPL+eCOiB1eo8xgf1Q0Q6I3LuvoxagFnBC+KAxGoBnl8zkff0BxXsC+Or4cQeOifLMf2pAA7h9Z+65YNDitW1DPdLPrnkT1N7JqtBaIMysSMon99BCtWEHjnNc/RcF8iUyJnmkgEV9zBs7x/heK5zRRAQiD3DiAM7AXkaKmh5vaP+noM5+9URp4wLnkvgqM8pLdtYU+s9+qokQsLmg6bwP0DbpKWOgQlKQo+dQcApLdVJQTLBJQFXRjaF+SJiuM6qrGYsryafXv/DIYAQ==",
               "thinking": "",
               "type": "thinking"
             },
             {
-              "text": "{\"status\":\"sql\",\"plan\":\"Find the semester with the latest start_date, then average the non-NULL grades of all enrollments in offerings of that semester. If that semester has no grades yet, the average comes back NULL.\",\"sql\":\"WITH latest AS (SELECT id, name, start_date FROM semesters ORDER BY start_date DESC LIMIT 1) SELECT l.id AS semester_id, l.name AS semester_name, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM latest l LEFT JOIN course_offerings co ON co.semester_id = l.id LEFT JOIN enrollments e ON e.offering_id = co.id GROUP BY l.id, l.name\",\"message\":null}",
+              "text": "{\"status\":\"sql\",\"plan\":\"Find the latest semester by the maximum start_date, join enrollments to their course offerings, and average the grades in that semester. AVG skips NULL grades, so in-progress enrollments are excluded from the average.\",\"sql\":\"SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id WHERE o.semester_id = (SELECT id FROM semesters WHERE start_date = (SELECT MAX(start_date) FROM semesters))\",\"message\":null}",
               "type": "text"
             }
           ],
           "usage": {
             "input_tokens": 1918,
-            "output_tokens": 319,
-            "total_tokens": 2237,
+            "output_tokens": 490,
+            "total_tokens": 2408,
             "input_token_details": {
               "cache_read": 0,
               "cache_creation": 0,
@@ -64,21 +64,21 @@
               "ephemeral_1h_input_tokens": 0
             },
             "output_token_details": {
-              "reasoning": 63
+              "reasoning": 300
             }
           },
           "error": null,
-          "duration_ms": 3608
+          "duration_ms": 3312
         }
       ],
       "update": {
         "llm_calls": 1,
         "attempts": 1,
-        "sql": "WITH latest AS (SELECT id, name, start_date FROM semesters ORDER BY start_date DESC LIMIT 1) SELECT l.id AS semester_id, l.name AS semester_name, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM latest l LEFT JOIN course_offerings co ON co.semester_id = l.id LEFT JOIN enrollments e ON e.offering_id = co.id GROUP BY l.id, l.name",
+        "sql": "SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id WHERE o.semester_id = (SELECT id FROM semesters WHERE start_date = (SELECT MAX(start_date) FROM semesters))",
         "error": null,
-        "plan": "Find the semester with the latest start_date, then average the non-NULL grades of all enrollments in offerings of that semester. If that semester has no grades yet, the average comes back NULL."
+        "plan": "Find the latest semester by the maximum start_date, join enrollments to their course offerings, and average the grades in that semester. AVG skips NULL grades, so in-progress enrollments are excluded from the average."
       },
-      "duration_ms": 3608
+      "duration_ms": 3312
     },
     {
       "node": "validate_sql",
@@ -86,7 +86,7 @@
       "update": {
         "error": null
       },
-      "duration_ms": 117
+      "duration_ms": 1
     },
     {
       "node": "execute_sql",
@@ -95,20 +95,14 @@
         "queries": [
           {
             "reason": "Answer the user's question.",
-            "plan": "Find the semester with the latest start_date, then average the non-NULL grades of all enrollments in offerings of that semester. If that semester has no grades yet, the average comes back NULL.",
-            "sql": "WITH latest AS (SELECT id, name, start_date FROM semesters ORDER BY start_date DESC LIMIT 1) SELECT l.id AS semester_id, l.name AS semester_name, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM latest l LEFT JOIN course_offerings co ON co.semester_id = l.id LEFT JOIN enrollments e ON e.offering_id = co.id GROUP BY l.id, l.name",
+            "plan": "Find the latest semester by the maximum start_date, join enrollments to their course offerings, and average the grades in that semester. AVG skips NULL grades, so in-progress enrollments are excluded from the average.",
+            "sql": "SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id WHERE o.semester_id = (SELECT id FROM semesters WHERE start_date = (SELECT MAX(start_date) FROM semesters))",
             "columns": [
-              "semester_id",
-              "semester_name",
-              "average_grade",
-              "graded_enrollments"
+              "average_grade"
             ],
             "rows": [
               [
-                3,
-                "Fall 2026",
-                null,
-                0
+                null
               ]
             ],
             "truncated": false
@@ -117,7 +111,7 @@
         "attempts": 0,
         "error": null
       },
-      "duration_ms": 1
+      "duration_ms": 0
     },
     {
       "node": "answer",
@@ -131,19 +125,29 @@
             ],
             [
               "human",
-              "Question: What is the average grade in the latest semester?\n\nQuery 1\nReason: Answer the user's question.\nPlan: Find the semester with the latest start_date, then average the non-NULL grades of all enrollments in offerings of that semester. If that semester has no grades yet, the average comes back NULL.\nSQL: WITH latest AS (SELECT id, name, start_date FROM semesters ORDER BY start_date DESC LIMIT 1) SELECT l.id AS semester_id, l.name AS semester_name, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM latest l LEFT JOIN course_offerings co ON co.semester_id = l.id LEFT JOIN enrollments e ON e.offering_id = co.id GROUP BY l.id, l.name\nResult: 1 row(s), columns: semester_id, semester_name, average_grade, graded_enrollments\n[3, \"Fall 2026\", null, 0]\n\n1 of 3 queries have been used. Choose a status:\n- \"answer\": the results are enough. Write the answer.\n- \"need_query\": the question cannot be answered without another query. Say in `reason` what it must find and why. Ask only when the answer truly depends on it."
+              "Question: What is the average grade in the latest semester?\n\nQuery 1\nReason: Answer the user's question.\nPlan: Find the latest semester by the maximum start_date, join enrollments to their course offerings, and average the grades in that semester. AVG skips NULL grades, so in-progress enrollments are excluded from the average.\nSQL: SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id WHERE o.semester_id = (SELECT id FROM semesters WHERE start_date = (SELECT MAX(start_date) FROM semesters))\nResult: 1 row(s), columns: average_grade. Every value is NULL.\n[null]\n\n1 of 3 queries have been used. Choose a status:\n- \"answer\": the results are enough. Write the answer.\n- \"need_query\": the question cannot be answered without another query. Say in `reason` what it must find and why. Ask only when the answer truly depends on it."
             ]
           ],
           "output": {
             "status": "answer",
-            "answer": "The latest semester, by start date, is Fall 2026. Its average grade is not available yet, because it has 0 graded enrollments. Per the schema notes, a NULL grade means the enrollment is still in progress and has not been graded, so there is no average to report (it is not zero).",
+            "answer": "The average grade in the latest semester is not available: the query returned NULL. This means the enrollments in the latest semester (by start_date) have no grades yet, since NULL grades mark in-progress enrollments and AVG skips them. It is not a grade of zero. The query did not return the semester's name, so I cannot confirm which semester it was.",
             "reason": null
           },
-          "raw": "{\"status\":\"answer\",\"answer\":\"The latest semester, by start date, is Fall 2026. Its average grade is not available yet, because it has 0 graded enrollments. Per the schema notes, a NULL grade means the enrollment is still in progress and has not been graded, so there is no average to report (it is not zero).\"}",
+          "raw": [
+            {
+              "signature": "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",
+              "thinking": "",
+              "type": "thinking"
+            },
+            {
+              "text": "{\"status\":\"answer\",\"answer\":\"The average grade in the latest semester is not available: the query returned NULL. This means the enrollments in the latest semester (by start_date) have no grades yet, since NULL grades mark in-progress enrollments and AVG skips them. It is not a grade of zero. The query did not return the semester's name, so I cannot confirm which semester it was.\",\"reason\":null}",
+              "type": "text"
+            }
+          ],
           "usage": {
-            "input_tokens": 2152,
-            "output_tokens": 104,
-            "total_tokens": 2256,
+            "input_tokens": 2064,
+            "output_tokens": 468,
+            "total_tokens": 2532,
             "input_token_details": {
               "cache_read": 0,
               "cache_creation": 0,
@@ -151,23 +155,23 @@
               "ephemeral_1h_input_tokens": 0
             },
             "output_token_details": {
-              "reasoning": 0
+              "reasoning": 341
             }
           },
           "error": null,
-          "duration_ms": 2118
+          "duration_ms": 3082
         }
       ],
       "update": {
         "llm_calls": 2,
         "status": "answered",
-        "answer": "The latest semester, by start date, is Fall 2026. Its average grade is not available yet, because it has 0 graded enrollments. Per the schema notes, a NULL grade means the enrollment is still in progress and has not been graded, so there is no average to report (it is not zero)."
+        "answer": "The average grade in the latest semester is not available: the query returned NULL. This means the enrollments in the latest semester (by start_date) have no grades yet, since NULL grades mark in-progress enrollments and AVG skips them. It is not a grade of zero. The query did not return the semester's name, so I cannot confirm which semester it was."
       },
-      "duration_ms": 2118
+      "duration_ms": 3082
     }
   ],
   "status": "answered",
-  "answer": "The latest semester, by start date, is Fall 2026. Its average grade is not available yet, because it has 0 graded enrollments. Per the schema notes, a NULL grade means the enrollment is still in progress and has not been graded, so there is no average to report (it is not zero).",
+  "answer": "The average grade in the latest semester is not available: the query returned NULL. This means the enrollments in the latest semester (by start_date) have no grades yet, since NULL grades mark in-progress enrollments and AVG skips them. It is not a grade of zero. The query did not return the semester's name, so I cannot confirm which semester it was.",
   "error": null,
-  "duration_ms": 5864
+  "duration_ms": 6411
 }

@@ -8,16 +8,14 @@ run time.
 ```text
 $ uv run sqlqa ask "What is Daniel Kim's average grade?"
 
-There are two students named Daniel Kim. Their averages differ:
-- Daniel Kim (daniel.kim@uni.example): average grade 62.5, from 2 graded enrollments.
-- Daniel Kim (daniel.kim2@uni.example): average grade about 91.33, from 3 graded enrollments.
+There are two students named Daniel Kim, told apart by email. daniel.kim@uni.example (id 4) has an average grade of 62.5. daniel.kim2@uni.example (id 6) has an average grade of about 91.33. In-progress enrollments with no grade yet were left out of each average.
 
-These averages count only graded enrollments. In-progress enrollments with no grade yet (NULL) are left out.
-
-Query 1: SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade, ... GROUP BY s.id, s.name, s.email
+Query 1: SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' COLLATE NOCASE GROUP BY s.id, s.name, s.email
 Status: answered
 Trace:  traces\<run id>.json
 ```
+
+This is the output of the run committed as [`docs/traces/02-duplicate-names.md`](docs/traces/02-duplicate-names.md).
 
 ## Quick start
 
@@ -118,6 +116,7 @@ src/sqlqa/            the agent; knows nothing about universities
 university/           the demo database: schema, seed data, notes, golden questions
 tests/                offline tests with a scripted model; one live evaluation file
 docs/                 design, production notes, examples, committed traces
+scripts/              make_examples.py regenerates docs/traces/ and docs/EXAMPLES.md
 ```
 
 ## Tests
@@ -142,7 +141,7 @@ run must have fetched from the database.
 
 Every run writes one JSON file to `traces/` with every node, every prompt and reply, the SQL, the
 guard's verdict, every returned row, timings and token counts. `sqlqa render-trace` turns it into
-Markdown. Eight example traces, in both forms, are in [`docs/traces/`](docs/traces/).
+Markdown. Nine example traces, in both forms, are in [`docs/traces/`](docs/traces/).
 
 LangSmith works as well, with no code change: set `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY`
 and `LANGSMITH_PROJECT` in `.env`.
