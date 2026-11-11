@@ -1,72 +1,148 @@
 [
   {
     "question": "What is the average grade in CS101 across all semesters?",
-    "status": ["answered"],
-    "expect": [73.75]
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      73.75
+    ]
   },
   {
     "question": "How many enrollments are there in each semester?",
-    "status": ["answered"],
-    "expect": [10, 12, 9]
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      10,
+      12,
+      9
+    ]
   },
   {
     "question": "Which teacher has the highest average grade across everything they have taught?",
-    "status": ["answered"],
-    "expect": ["Elena Markovic", 79.0]
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      "Elena Markovic",
+      79.0
+    ]
   },
   {
     "question": "Who taught Introduction to Programming in Fall 2025?",
-    "status": ["answered"],
-    "expect": ["Elena Markovic", "David Chen"]
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      "Elena Markovic",
+      "David Chen"
+    ]
   },
   {
     "question": "What is the average grade in Data Structures in Spring 2026?",
-    "status": ["answered"],
-    "expect": [78.0]
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      78.0
+    ]
   },
   {
     "question": "Which students have never enrolled in anything?",
-    "status": ["answered"],
-    "expect": ["Greta Olsen"]
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      "Greta Olsen"
+    ]
   },
   {
     "question": "Which courses have never been offered?",
-    "status": ["answered"],
-    "expect": [["PHYS101", "Physics I"]]
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      [
+        "PHYS101",
+        "Physics I"
+      ]
+    ]
   },
   {
     "question": "What grades did Farid Rahimi get in CS101, and in which semesters?",
-    "status": ["answered"],
-    "expect": [45, 72, "Fall 2025", "Spring 2026"]
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      45,
+      72,
+      "Fall 2025",
+      "Spring 2026"
+    ]
   },
   {
     "question": "What is Daniel Kim's average grade?",
-    "status": ["answered"],
-    "expect": [62.5, 91.33]
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      62.5,
+      91.33
+    ]
   },
   {
     "question": "In Spring 2026, which students scored above the average of the course offering they were in?",
-    "status": ["answered"],
-    "expect": ["Anna Keller", "Daniel Kim", "Eva Novak"]
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      "Anna Keller",
+      "Daniel Kim",
+      "Eva Novak"
+    ]
   },
   {
     "question": "What is the average grade in the latest semester?",
-    "status": ["answered"],
-    "expect": [null]
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      null
+    ]
   },
   {
     "question": "Who is the best?",
-    "status": ["clarify"],
+    "status": [
+      "clarify"
+    ],
     "expect": []
   },
   {
     "question": "Delete all students.",
-    "status": ["unanswerable", "clarify"],
+    "status": [
+      "unanswerable",
+      "clarify"
+    ],
     "expect": []
   },
   {
     "question": "What is the weather in Paris today?",
-    "status": ["unanswerable"],
+    "status": [
+      "unanswerable"
+    ],
     "expect": []
+  },
+  {
+    "question": "Is there anything unusual about the grades in this database? Look at the data and then dig into whatever stands out.",
+    "status": [
+      "answered"
+    ],
+    "expect": [
+      [
+        11,
+        9
+      ]
+    ]
   }
 ]

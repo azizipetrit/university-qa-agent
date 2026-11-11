@@ -1,4 +1,4 @@
-# Trace 20261111-222508-4d4ca4
+# Trace 20261111-225423-4d9ec2
 
 **Question:** Which teacher has the highest average grade across everything they have taught, and how many graded enrollments is that based on?
 
@@ -6,11 +6,11 @@
 
 **Answer:**
 
-> Elena Markovic (teacher id 1) has the highest average grade across everything they have taught: 79.0, based on 6 graded enrollments. This averages all graded enrollments across all their course offerings, and ungraded (in-progress) enrollments were excluded.
+> Elena Markovic has the highest average grade across everything they have taught, at 79.0. This average is based on 6 graded enrollments. It is calculated per enrollment across all offerings they taught, counting only enrollments with a grade (in-progress enrollments with NULL grades were excluded).
 
 | Model | Model calls | Queries run | Tokens in / out | Duration |
 |---|---|---|---|---|
-| anthropic:claude-haiku-5-5 | 2 | 1 | 4174 / 828 | 5.4 s |
+| anthropic:claude-haiku-5-5 | 2 | 1 | 4255 / 1035 | 6.5 s |
 
 ## Path
 
@@ -93,7 +93,7 @@ Notes:
 
 ## Steps
 
-### 1. load_schema (9 ms)
+### 1. load_schema (10 ms)
 
 **State changes:**
 
@@ -102,9 +102,9 @@ Notes:
 - `dialect`: "sqlite"
 
 
-### 2. generate_sql (4.1 s)
+### 2. generate_sql (4.8 s)
 
-**Model call** (SqlDecision, 1939 tokens in, 723 out, 4.1 s)
+**Model call** (SqlDecision, 1983 tokens in, 922 out, 4.8 s)
 
 *Prompt, system:*
 
@@ -117,6 +117,7 @@ Rules for the query:
 - Read the notes at the end of the schema, if there are any. They say what the data means.
 - Sample rows show how values are written. They are not the full data. Write filter values in the same format.
 - When the request names a person or thing, also select a column that identifies it uniquely, because names can repeat.
+- When the query has to find which item a figure belongs to (the latest, the highest, the first), also select what that item is, so the answer can name it.
 - Do not add LIMIT unless the request asks for a top or bottom N.
 
 Choose a status:
@@ -139,8 +140,8 @@ Question: Which teacher has the highest average grade across everything they hav
 ```json
 {
   "status": "sql",
-  "plan": "Join teachers to their course offerings and then to enrollments, keep only graded enrollments (grade IS NOT NULL), group by teacher id and name, compute the average grade and the count of graded enrollments, and return the top teacher by average. Assumes 'average grade across everything they taught' means the mean over all their graded enrollments across all offerings, with ungraded enrollments excluded.",
-  "sql": "SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_enrollments FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name ORDER BY avg_grade DESC LIMIT 1",
+  "plan": "Averages each teacher's grades over all their graded enrollments across every offering they taught, counting only enrollments with a non-NULL grade, then returns the teacher or teachers with the highest average along with the number of graded enrollments behind it. The average is per enrollment, not per offering, and ties are all returned rather than cut to one row.",
+  "sql": "WITH teacher_grades AS (SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_count FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name) SELECT teacher_id, teacher_name, avg_grade, graded_count FROM teacher_grades WHERE avg_grade = (SELECT MAX(avg_grade) FROM teacher_grades)",
   "message": null
 }
 ```
@@ -152,14 +153,14 @@ Question: Which teacher has the highest average grade across everything they hav
 - `sql`:
 
 ```sql
-SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_enrollments FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name ORDER BY avg_grade DESC LIMIT 1
+WITH teacher_grades AS (SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_count FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name) SELECT teacher_id, teacher_name, avg_grade, graded_count FROM teacher_grades WHERE avg_grade = (SELECT MAX(avg_grade) FROM teacher_grades)
 ```
 
 - `error`: null
-- `plan`: "Join teachers to their course offerings and then to enrollments, keep only graded enrollments (grade IS NOT NULL), group by teacher id and name, compute the average grade and the count of graded enrollments, and return the top teacher by average. Assumes 'average grade across everything they taught' means the mean over all their graded enrollments across all offerings, with ungraded enrollments excluded."
+- `plan`: "Averages each teacher's grades over all their graded enrollments across every offering they taught, counting only enrollments with a non-NULL grade, then returns the teacher or teachers with the highest average along with the number of graded enrollments behind it. The average is per enrollment, not per offering, and ties are all returned rather than cut to one row."
 
 
-### 3. validate_sql (123 ms)
+### 3. validate_sql (118 ms)
 
 **State changes:**
 
@@ -172,14 +173,14 @@ SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, CO
 
 - `queries`: one query recorded
   - reason: Answer the user's question.
-  - plan: Join teachers to their course offerings and then to enrollments, keep only graded enrollments (grade IS NOT NULL), group by teacher id and name, compute the average grade and the count of graded enrollments, and return the top teacher by average. Assumes 'average grade across everything they taught' means the mean over all their graded enrollments across all offerings, with ungraded enrollments excluded.
+  - plan: Averages each teacher's grades over all their graded enrollments across every offering they taught, counting only enrollments with a non-NULL grade, then returns the teacher or teachers with the highest average along with the number of graded enrollments behind it. The average is per enrollment, not per offering, and ties are all returned rather than cut to one row.
   - result: 1 row(s)
 
 ```sql
-SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_enrollments FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name ORDER BY avg_grade DESC LIMIT 1
+WITH teacher_grades AS (SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_count FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name) SELECT teacher_id, teacher_name, avg_grade, graded_count FROM teacher_grades WHERE avg_grade = (SELECT MAX(avg_grade) FROM teacher_grades)
 ```
 
-| teacher_id | teacher_name | avg_grade | graded_enrollments |
+| teacher_id | teacher_name | avg_grade | graded_count |
 |---|---|---|---|
 | 1 | Elena Markovic | 79.0 | 6 |
 
@@ -187,9 +188,9 @@ SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, CO
 - `error`: null
 
 
-### 5. answer (1.1 s)
+### 5. answer (1.5 s)
 
-**Model call** (AnswerDecision, 2235 tokens in, 105 out, 1.1 s)
+**Model call** (AnswerDecision, 2272 tokens in, 113 out, 1.5 s)
 
 *Prompt, system:*
 
@@ -217,9 +218,9 @@ Question: Which teacher has the highest average grade across everything they hav
 
 Query 1
 Reason: Answer the user's question.
-Plan: Join teachers to their course offerings and then to enrollments, keep only graded enrollments (grade IS NOT NULL), group by teacher id and name, compute the average grade and the count of graded enrollments, and return the top teacher by average. Assumes 'average grade across everything they taught' means the mean over all their graded enrollments across all offerings, with ungraded enrollments excluded.
-SQL: SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_enrollments FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name ORDER BY avg_grade DESC LIMIT 1
-Result: 1 row(s), columns: teacher_id, teacher_name, avg_grade, graded_enrollments
+Plan: Averages each teacher's grades over all their graded enrollments across every offering they taught, counting only enrollments with a non-NULL grade, then returns the teacher or teachers with the highest average along with the number of graded enrollments behind it. The average is per enrollment, not per offering, and ties are all returned rather than cut to one row.
+SQL: WITH teacher_grades AS (SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_count FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name) SELECT teacher_id, teacher_name, avg_grade, graded_count FROM teacher_grades WHERE avg_grade = (SELECT MAX(avg_grade) FROM teacher_grades)
+Result: 1 row(s), columns: teacher_id, teacher_name, avg_grade, graded_count
 [1, "Elena Markovic", 79.0, 6]
 
 1 of 3 queries have been used. Choose a status:
@@ -232,7 +233,7 @@ Result: 1 row(s), columns: teacher_id, teacher_name, avg_grade, graded_enrollmen
 ```json
 {
   "status": "answer",
-  "answer": "Elena Markovic (teacher id 1) has the highest average grade across everything they have taught: 79.0, based on 6 graded enrollments. This averages all graded enrollments across all their course offerings, and ungraded (in-progress) enrollments were excluded.",
+  "answer": "Elena Markovic has the highest average grade across everything they have taught, at 79.0. This average is based on 6 graded enrollments. It is calculated per enrollment across all offerings they taught, counting only enrollments with a grade (in-progress enrollments with NULL grades were excluded).",
   "reason": null
 }
 ```
@@ -243,4 +244,4 @@ Result: 1 row(s), columns: teacher_id, teacher_name, avg_grade, graded_enrollmen
 - `status`: "answered"
 - `answer`:
 
-> Elena Markovic (teacher id 1) has the highest average grade across everything they have taught: 79.0, based on 6 graded enrollments. This averages all graded enrollments across all their course offerings, and ungraded (in-progress) enrollments were excluded.
+> Elena Markovic has the highest average grade across everything they have taught, at 79.0. This average is based on 6 graded enrollments. It is calculated per enrollment across all offerings they taught, counting only enrollments with a grade (in-progress enrollments with NULL grades were excluded).

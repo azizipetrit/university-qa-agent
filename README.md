@@ -94,7 +94,7 @@ The reasoning behind each choice is in [docs/DESIGN.md](docs/DESIGN.md).
 | Database-agnostic design | [`src/sqlqa/db.py`](src/sqlqa/db.py) introspects the schema; everything university-specific is in [`university/`](university/) |
 | Tracing | [`src/sqlqa/tracing.py`](src/sqlqa/tracing.py), example traces in [`docs/traces/`](docs/traces/) |
 | Debugging and error handling | [`src/sqlqa/sql_guard.py`](src/sqlqa/sql_guard.py), the loops above, and the walkthrough in [docs/EXAMPLES.md](docs/EXAMPLES.md#debugging-a-wrong-answer) |
-| Unit tests | [`tests/`](tests/): 126 offline tests, plus 14 live evaluation questions |
+| Unit tests | [`tests/`](tests/): 126 offline tests, plus 15 live evaluation questions |
 | Code quality | One responsibility per module; see the layout below |
 | Production considerations | [docs/PRODUCTION.md](docs/PRODUCTION.md) |
 | Example queries and outputs | [docs/EXAMPLES.md](docs/EXAMPLES.md) |
@@ -123,7 +123,7 @@ scripts/              make_examples.py regenerates docs/traces/ and docs/EXAMPLE
 
 ```bash
 uv run pytest             # 126 tests, offline, about 2 seconds, no API key needed
-uv run pytest -m live     # 14 real questions against the real model (costs a few cents)
+uv run pytest -m live     # 15 real questions against the real model (costs a few cents)
 uv run ruff check .
 ```
 
@@ -141,7 +141,7 @@ run must have fetched from the database.
 
 Every run writes one JSON file to `traces/` with every node, every prompt and reply, the SQL, the
 guard's verdict, every returned row, timings and token counts. `sqlqa render-trace` turns it into
-Markdown. Nine example traces, in both forms, are in [`docs/traces/`](docs/traces/).
+Markdown. Ten example traces, in both forms, are in [`docs/traces/`](docs/traces/).
 
 LangSmith works as well, with no code change: set `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY`
 and `LANGSMITH_PROJECT` in `.env`.
