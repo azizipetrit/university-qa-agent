@@ -1,7 +1,7 @@
 # Design
 
-This document grows with each phase. So far: the university database, the database layer and the
-SQL guard.
+This document grows with each phase. So far: the university database, the database layer, the SQL
+guard, the agent graph and tracing.
 
 ## Database
 
@@ -105,6 +105,110 @@ everywhere. The connection-level switch is only implemented for SQLite.
 - **What I have not done:** I have only run this against SQLite. Other dialects are supported by
   design (SQLAlchemy and sqlglot both handle them) but are untested here.
 
+## The agent (`src/sqlqa/graph.py`, `nodes.py`)
+
+An explicit LangGraph `StateGraph` with six nodes. Two call the model; four are plain code.
+
+```text
+load_schema -> generate_sql -> validate_sql -> execute_sql -> answer -> END
+                    ^               |               |            |
+                    +---------------+---------------+------------+
+                     guard rejects    database        answer asks for
+                     the SQL          rejects it      another query
+```
+
+| Node | Model? | What it does |
+|---|---|---|
+| `load_schema` | no | Reads the schema from the live database. |
+| `generate_sql` | yes | Returns SQL with a short plan, or a clarifying question, or "cannot answer". |
+| `validate_sql` | no | Runs the SQL guard. |
+| `execute_sql` | no | Runs the query read-only and records the result. |
+| `answer` | yes | Returns the answer, or asks for one more query and says why. |
+| `give_up` | no | Ends the run with an honest failure message when a limit is hit. |
+
+The model never chooses which node runs next. It returns a small structured object, and plain
+Python functions in `graph.py` (the routers) read the state and pick the next node. That keeps the
+control flow readable in one file and testable without a model.
+
+### Three loops, three limits
+
+| What sends the run back to `generate_sql` | Limit | Default |
+|---|---|---|
+| The guard or the database rejects the SQL. The error text goes back to the model. | Attempts per query | 3 |
+| `answer` asks for another query, with a reason. | Queries per question | 3 |
+| Either of the above. | Model calls per run | 10 |
+
+- The attempt counter starts again after each query that runs, so every query gets its own three
+  attempts.
+- A normal question costs two model calls: one to write SQL, one to answer. There is no planning
+  or review call in front of that.
+- When the query limit is reached, `answer` is given a different output shape that has no "ask for
+  another query" option, so it has to answer. If it marks the answer incomplete, the code appends
+  a fixed sentence saying the limit was reached. The model is not trusted to remember to say it.
+- When the attempt limit or the model-call limit is reached, `give_up` reports the last SQL and the
+  last error. It does not call the model.
+
+### Multi-step questions
+
+Most questions need one query, because SQL can already express several steps with CTEs and
+subqueries. The loop is for questions where the second query depends on what the first one
+returned. Each query is stored with the reason it was run, and both appear in the trace.
+
+### Empty and NULL results
+
+There is no separate review step. `answer` runs after every query and its prompt states plainly
+when a result has 0 rows or only NULLs. It then either answers ("nothing matches", "not graded
+yet") or asks for a corrected query, for example when a filter value was written differently from
+the data. A corrected query counts as one of the three queries.
+
+### Ambiguous questions
+
+- If the question cannot be mapped to the schema without guessing ("who is the best?"),
+  `generate_sql` ends the run with one clarifying question.
+- If a reasonable reading exists, the model takes it and states the assumption in its plan, and
+  the answer repeats it.
+- If the results show several matches for one name, the answer reports each one separately.
+
+**Upgrade path: a real back-and-forth.** Today the run ends and the user asks again with more
+detail. LangGraph supports pausing instead: the node calls `interrupt()` with the clarifying
+question, a checkpointer saves the state, and the run resumes from the same point when the user
+replies. That needs a checkpointer (a database table in production), a thread id per conversation,
+and a CLI or API that can resume a run. It is the right next step for a chat interface and too
+much machinery for a one-shot command.
+
+### Structured output
+
+Both model nodes use `with_structured_output` with a Pydantic model, so the reply is an object with
+named fields, not text to parse. A reply that does not fit is treated like any other failure: in
+`generate_sql` it counts as an attempt and the model is told; in `answer` the run ends as failed.
+
+### Swapping the model
+
+`LLM_MODEL` is passed to langchain's `init_chat_model`, so `provider:model` selects any supported
+provider. Nothing in `src/` imports a provider. All model calls go through one function,
+`call_llm`, which is also where tracing happens.
+
+## Tracing (`src/sqlqa/tracing.py`)
+
+Every run writes one JSON file. It is written by our own code, so it works offline and can be
+committed to the repository as evidence.
+
+- **Nodes:** `graph.py` wraps every node with `tracer.wrap` when it builds the graph. The wrapper
+  records the node name, what the node changed in the state, how long it took, and any exception.
+  No node contains tracing code.
+- **Model calls:** `call_llm` records the full prompt, the parsed reply, the raw reply, token
+  counts and duration, attached to the node that made the call.
+- **Queries:** each one is stored with its reason, plan, SQL, columns, rows and truncation flag.
+- **Failures:** if a node raises, the trace is still written, with status `crashed`.
+
+`sqlqa render-trace <file>` turns the JSON into Markdown for reading: a summary, the path through
+the graph, the schema once, then each step with its prompt, reply, SQL and result table. The JSON
+keeps the schema inside every prompt exactly as it was sent; the Markdown replaces it with a
+placeholder so the steps stay short.
+
+LangSmith needs no code. Setting `LANGSMITH_TRACING=true` and a key sends the same run there as
+well, because LangGraph and langchain report to it on their own.
+
 ## Assumptions
 
 Small choices made without discussion, simplest option taken.
@@ -131,3 +235,19 @@ Small choices made without discussion, simplest option taken.
 - `build_db.py` deletes and recreates the database on every run. The `.db` file is not committed.
 - `university` is installed as a second package next to `sqlqa`, so tests can import the builder.
   `sqlqa` never imports it.
+- Each question is independent. There is no conversation memory, so "and in spring?" will not work.
+- The schema is read again on every run, so each trace shows the schema that was actually used.
+- Node inputs are not stored in the trace, only what each node changed. The state at any step is
+  the earlier changes applied in order.
+- Trace files go to `traces/`, which is not committed because they contain database rows. Chosen
+  examples will be committed under `docs/traces/`.
+- `STRUCTURED_OUTPUT_METHOD` is an optional setting passed to `with_structured_output`. Current
+  Anthropic models do not allow forcing a tool call, which is langchain's default method for them,
+  so `.env.example` sets `json_schema`. Left empty, the provider's default is used.
+- No temperature is set. Current Anthropic models reject the parameter, and leaving it out keeps
+  the code the same for every provider.
+- The model is not told to round numbers. The answer shows what the database returned.
+- The CLI loads `.env` from the directory it is run in. It exits with code 1 when a run fails and
+  2 when a required setting is missing.
+- LangGraph's own step limit is set to 60, above the worst case the three limits allow.
+- The Markdown view shows the first 10 rows of each result; the JSON has all of them.
