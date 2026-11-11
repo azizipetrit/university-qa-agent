@@ -1,4 +1,4 @@
-# Trace 20261111-220314-e7ac20
+# Trace 20261111-222534-265186
 
 **Question:** What is the average grade in the latest semester?
 
@@ -6,11 +6,11 @@
 
 **Answer:**
 
-> The latest semester, by start date, is Fall 2026. Its average grade is not available yet, because it has 0 graded enrollments. Per the schema notes, a NULL grade means the enrollment is still in progress and has not been graded, so there is no average to report (it is not zero).
+> The average grade in the latest semester is not available: the query returned NULL. This means the enrollments in the latest semester (by start_date) have no grades yet, since NULL grades mark in-progress enrollments and AVG skips them. It is not a grade of zero. The query did not return the semester's name, so I cannot confirm which semester it was.
 
 | Model | Model calls | Queries run | Tokens in / out | Duration |
 |---|---|---|---|---|
-| anthropic:claude-opus-5-5 | 2 | 1 | 4070 / 423 | 5.9 s |
+| anthropic:claude-haiku-5-5 | 2 | 1 | 3982 / 958 | 6.4 s |
 
 ## Path
 
@@ -93,7 +93,7 @@ Notes:
 
 ## Steps
 
-### 1. load_schema (10 ms)
+### 1. load_schema (8 ms)
 
 **State changes:**
 
@@ -102,9 +102,9 @@ Notes:
 - `dialect`: "sqlite"
 
 
-### 2. generate_sql (3.6 s)
+### 2. generate_sql (3.3 s)
 
-**Model call** (SqlDecision, 1918 tokens in, 319 out, 3.6 s)
+**Model call** (SqlDecision, 1918 tokens in, 490 out, 3.3 s)
 
 *Prompt, system:*
 
@@ -139,8 +139,8 @@ Question: What is the average grade in the latest semester?
 ```json
 {
   "status": "sql",
-  "plan": "Find the semester with the latest start_date, then average the non-NULL grades of all enrollments in offerings of that semester. If that semester has no grades yet, the average comes back NULL.",
-  "sql": "WITH latest AS (SELECT id, name, start_date FROM semesters ORDER BY start_date DESC LIMIT 1) SELECT l.id AS semester_id, l.name AS semester_name, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM latest l LEFT JOIN course_offerings co ON co.semester_id = l.id LEFT JOIN enrollments e ON e.offering_id = co.id GROUP BY l.id, l.name",
+  "plan": "Find the latest semester by the maximum start_date, join enrollments to their course offerings, and average the grades in that semester. AVG skips NULL grades, so in-progress enrollments are excluded from the average.",
+  "sql": "SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id WHERE o.semester_id = (SELECT id FROM semesters WHERE start_date = (SELECT MAX(start_date) FROM semesters))",
   "message": null
 }
 ```
@@ -152,44 +152,44 @@ Question: What is the average grade in the latest semester?
 - `sql`:
 
 ```sql
-WITH latest AS (SELECT id, name, start_date FROM semesters ORDER BY start_date DESC LIMIT 1) SELECT l.id AS semester_id, l.name AS semester_name, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM latest l LEFT JOIN course_offerings co ON co.semester_id = l.id LEFT JOIN enrollments e ON e.offering_id = co.id GROUP BY l.id, l.name
+SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id WHERE o.semester_id = (SELECT id FROM semesters WHERE start_date = (SELECT MAX(start_date) FROM semesters))
 ```
 
 - `error`: null
-- `plan`: "Find the semester with the latest start_date, then average the non-NULL grades of all enrollments in offerings of that semester. If that semester has no grades yet, the average comes back NULL."
+- `plan`: "Find the latest semester by the maximum start_date, join enrollments to their course offerings, and average the grades in that semester. AVG skips NULL grades, so in-progress enrollments are excluded from the average."
 
 
-### 3. validate_sql (117 ms)
+### 3. validate_sql (1 ms)
 
 **State changes:**
 
 - `error`: null
 
 
-### 4. execute_sql (1 ms)
+### 4. execute_sql (0 ms)
 
 **State changes:**
 
 - `queries`: one query recorded
   - reason: Answer the user's question.
-  - plan: Find the semester with the latest start_date, then average the non-NULL grades of all enrollments in offerings of that semester. If that semester has no grades yet, the average comes back NULL.
+  - plan: Find the latest semester by the maximum start_date, join enrollments to their course offerings, and average the grades in that semester. AVG skips NULL grades, so in-progress enrollments are excluded from the average.
   - result: 1 row(s)
 
 ```sql
-WITH latest AS (SELECT id, name, start_date FROM semesters ORDER BY start_date DESC LIMIT 1) SELECT l.id AS semester_id, l.name AS semester_name, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM latest l LEFT JOIN course_offerings co ON co.semester_id = l.id LEFT JOIN enrollments e ON e.offering_id = co.id GROUP BY l.id, l.name
+SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id WHERE o.semester_id = (SELECT id FROM semesters WHERE start_date = (SELECT MAX(start_date) FROM semesters))
 ```
 
-| semester_id | semester_name | average_grade | graded_enrollments |
-|---|---|---|---|
-| 3 | Fall 2026 | NULL | 0 |
+| average_grade |
+|---|
+| NULL |
 
 - `attempts`: 0
 - `error`: null
 
 
-### 5. answer (2.1 s)
+### 5. answer (3.1 s)
 
-**Model call** (AnswerDecision, 2152 tokens in, 104 out, 2.1 s)
+**Model call** (AnswerDecision, 2064 tokens in, 468 out, 3.1 s)
 
 *Prompt, system:*
 
@@ -217,10 +217,10 @@ Question: What is the average grade in the latest semester?
 
 Query 1
 Reason: Answer the user's question.
-Plan: Find the semester with the latest start_date, then average the non-NULL grades of all enrollments in offerings of that semester. If that semester has no grades yet, the average comes back NULL.
-SQL: WITH latest AS (SELECT id, name, start_date FROM semesters ORDER BY start_date DESC LIMIT 1) SELECT l.id AS semester_id, l.name AS semester_name, AVG(e.grade) AS average_grade, COUNT(e.grade) AS graded_enrollments FROM latest l LEFT JOIN course_offerings co ON co.semester_id = l.id LEFT JOIN enrollments e ON e.offering_id = co.id GROUP BY l.id, l.name
-Result: 1 row(s), columns: semester_id, semester_name, average_grade, graded_enrollments
-[3, "Fall 2026", null, 0]
+Plan: Find the latest semester by the maximum start_date, join enrollments to their course offerings, and average the grades in that semester. AVG skips NULL grades, so in-progress enrollments are excluded from the average.
+SQL: SELECT AVG(e.grade) AS average_grade FROM enrollments e JOIN course_offerings o ON e.offering_id = o.id WHERE o.semester_id = (SELECT id FROM semesters WHERE start_date = (SELECT MAX(start_date) FROM semesters))
+Result: 1 row(s), columns: average_grade. Every value is NULL.
+[null]
 
 1 of 3 queries have been used. Choose a status:
 - "answer": the results are enough. Write the answer.
@@ -232,7 +232,7 @@ Result: 1 row(s), columns: semester_id, semester_name, average_grade, graded_enr
 ```json
 {
   "status": "answer",
-  "answer": "The latest semester, by start date, is Fall 2026. Its average grade is not available yet, because it has 0 graded enrollments. Per the schema notes, a NULL grade means the enrollment is still in progress and has not been graded, so there is no average to report (it is not zero).",
+  "answer": "The average grade in the latest semester is not available: the query returned NULL. This means the enrollments in the latest semester (by start_date) have no grades yet, since NULL grades mark in-progress enrollments and AVG skips them. It is not a grade of zero. The query did not return the semester's name, so I cannot confirm which semester it was.",
   "reason": null
 }
 ```
@@ -243,4 +243,4 @@ Result: 1 row(s), columns: semester_id, semester_name, average_grade, graded_enr
 - `status`: "answered"
 - `answer`:
 
-> The latest semester, by start date, is Fall 2026. Its average grade is not available yet, because it has 0 graded enrollments. Per the schema notes, a NULL grade means the enrollment is still in progress and has not been graded, so there is no average to report (it is not zero).
+> The average grade in the latest semester is not available: the query returned NULL. This means the enrollments in the latest semester (by start_date) have no grades yet, since NULL grades mark in-progress enrollments and AVG skips them. It is not a grade of zero. The query did not return the semester's name, so I cannot confirm which semester it was.

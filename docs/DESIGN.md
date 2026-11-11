@@ -225,9 +225,25 @@ Two kinds of test answer two different questions.
   correct run must have fetched (for example `73.75`), and the expected status. Whole result sets
   are not compared, because a correct query that selects one extra column would fail.
 
-The live evaluation is not run by default, because it needs a key and costs money. Its first full
-run passed 13 of 14 and exposed a real misreading, which is written up in
-[EXAMPLES.md](EXAMPLES.md#debugging-a-wrong-answer). After the fix it passed 14 of 14.
+The live evaluation is not run by default, because it needs a key and costs money.
+
+### Scores
+
+| Model | Schema notes | Result | Runs |
+| --- | --- | --- | --- |
+| `anthropic:claude-opus-5-5` | Before the "latest semester" line | 13 of 14 | 1 |
+| `anthropic:claude-opus-5-5` | Current | 14 of 14 | 1 |
+| `anthropic:claude-haiku-5-5` (the default) | Current | 14 of 14 | 2 |
+
+- The one Opus failure was a real misreading of "latest semester". It is written up in
+  [EXAMPLES.md](EXAMPLES.md#debugging-a-wrong-answer), and fixed by one line in the schema notes.
+- That failure does not reproduce on Haiku. With the line removed, Haiku picked the true latest
+  semester in three of three runs. The walkthrough therefore keeps the Opus traces.
+- Haiku is the default because it passes the same evaluation at a fraction of the cost. The
+  evaluation is 14 questions on a six-table schema, so this says the smaller model is enough here,
+  not that it would be on a larger or messier database.
+- These are counts from single runs, and model output varies between runs. Re-run the evaluation
+  after changing the model, the prompts or the notes.
 
 ## Known limitations
 
@@ -290,8 +306,11 @@ Small choices made without discussion, simplest option taken.
 - A golden question passes when each expected value appears in some row of some query the run
   executed. Numbers match within 0.01; text matches case-insensitively as a substring.
 - Live test traces go to `traces/live/`.
-- The committed example traces were copied from real runs and renamed. The scripted one is
-  labelled in its header.
+- `scripts/make_examples.py` produces the committed traces and `EXAMPLES.md`. Model names,
+  answers, SQL and counts in `EXAMPLES.md` are read from the trace files, never typed. The
+  commentary under each example is hand-written in the script and has to be re-checked after a
+  re-run. The scripted trace is labelled in its header.
+- SQL in `EXAMPLES.md` is re-laid-out by sqlglot for reading. The traces hold the original text.
 - The answer prompt tells the model to refer to people by name or as "they", because an early run
   wrote "she" for a teacher and the data holds no such information.
 - The README diagram is the unedited output of `draw_mermaid()`.
