@@ -57,7 +57,7 @@ EXAMPLES = [
     ),
     (
         "03-no-sample-rows",
-        "An empty result leads to a second query (sample rows off)",
+        "Sample rows switched off: a NULL the agent could not explain",
         "What is the average grade in the programming intro class taught by Dr. Chen in the "
         "winter term of 2025?",
         {"sample_rows": 0},
@@ -90,6 +90,18 @@ EXAMPLES = [
         "test_writes_are_refused_by_the_connection_itself`).",
     ),
 ]
+
+TWO_QUERIES = "10-two-queries-default-settings"
+EXAMPLES.append(
+    (
+        TWO_QUERIES,
+        "An open question answered with two queries, on default settings",
+        "Is there anything unusual about the grades in this database? Look at the data and "
+        "then dig into whatever stands out.",
+        {},
+        "",  # see NOTES
+    )
+)
 
 REPAIR = "07-repair-scripted"
 DEBUG_BEFORE = "08-debug-before-fix"
@@ -185,9 +197,9 @@ def quote(text: str) -> str:
 # --- writing EXAMPLES.md -----------------------------------------------------
 
 
-def example_section(number: int, name: str, title: str, note: str) -> list[str]:
+def example_section(name: str, title: str, note: str) -> list[str]:
     trace = load(name)
-    out = [f"## {number}. {title}", "", f"**Question:** {trace['question']}", ""]
+    out = [f"## {int(name[:2])}. {title}", "", f"**Question:** {trace['question']}", ""]
     out += [f"**Answer** (status `{trace['status']}`):", "", quote(trace["answer"]), ""]
     for node, error in errors(trace):
         out += [f"Rejected in `{node}`: {error}", ""]
@@ -210,7 +222,7 @@ def example_section(number: int, name: str, title: str, note: str) -> list[str]:
 
 
 def write_examples():
-    names = [e[0] for e in EXAMPLES] + [REPAIR, DEBUG_BEFORE, DEBUG_AFTER]
+    names = sorted([e[0] for e in EXAMPLES] + [REPAIR, DEBUG_BEFORE, DEBUG_AFTER])
     for name in names:
         (TRACES / f"{name}.md").write_text(render_markdown(load(name)), encoding="utf-8")
 
@@ -230,10 +242,10 @@ def write_examples():
         "| # | What it shows | Model | Model calls | Queries | Trace |",
         "| --- | --- | --- | --- | --- | --- |",
     ]
-    for number, name in enumerate(names, start=1):
+    for name in names:
         trace = load(name)
         out.append(
-            f"| {number} | {titles[name]} | `{trace['model']}` | {len(model_calls(trace))} "
+            f"| {int(name[:2])} | {titles[name]} | `{trace['model']}` | {len(model_calls(trace))} "
             f"| {len(queries(trace))} | [{name[:2]}](traces/{name}.md) |"
         )
     out += [
@@ -242,11 +254,11 @@ def write_examples():
         "",
     ]
 
-    for number, (name, title, _question, _overrides, note) in enumerate(EXAMPLES, start=1):
-        out += example_section(number, name, title, NOTES.get(name, note))
+    for name, title, _question, _overrides, note in EXAMPLES:
+        if name < REPAIR:
+            out += example_section(name, title, NOTES.get(name, note))
 
     out += example_section(
-        len(EXAMPLES) + 1,
         REPAIR,
         titles[REPAIR],
         "The real model rarely writes SQL that fails on this small schema, so this trace was "
@@ -254,6 +266,9 @@ def write_examples():
         "query because it checks tables, not columns. The database rejected it, the error went "
         "back to `generate_sql`, and the second query ran.",
     )
+    for name, title, _question, _overrides, note in EXAMPLES:
+        if name > REPAIR:  # examples added after the debugging traces were numbered
+            out += example_section(name, title, NOTES.get(name, note))
     out += debugging_section()
     (ROOT / "docs" / "EXAMPLES.md").write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
     print("wrote docs/EXAMPLES.md and", len(names), "trace views")
@@ -337,10 +352,20 @@ def debugging_section() -> list[str]:
 NOTES: dict[str, str] = {
     "03-no-sample-rows": (
         "Sample rows were switched off for this run (`SAMPLE_ROWS=0`), so the model could not "
-        "see how terms are written. The first query returned 0 rows. The `answer` node judged "
-        "that a filter mismatch was more likely than a true absence and asked for a second "
-        "query, with the reason shown above. This is the multi-step loop and the empty-result "
-        "check working together on a real run."
+        "see how terms are written and filtered on a term called 'winter', which does not "
+        "exist. An average over no matching rows is one row holding NULL, not zero rows, so "
+        "the result looked the same as a class that is not graded yet. The answer says the "
+        "value is not available and names both possible causes, but it did not ask for a "
+        "second query to find out which. Earlier runs of this question did ask for one. This "
+        "is a known limitation, listed in `DESIGN.md`."
+    ),
+    TWO_QUERIES: (
+        "This run used the default settings. The first query was a broad check. The `answer` "
+        "node then asked for a second query to break the NULL grades down by semester, with "
+        "the reason shown above, and the answer is built from both results. The counts are "
+        "correct: 31 enrollments, 11 without a grade, 9 of them in Fall 2026 and 2 in Spring "
+        "2026. Of six compound questions tried on default settings, this was the only one "
+        "that used a second query; the other five were answered with one."
     ),
     "04-null-result-latest-semester": (
         "The latest semester has enrollments but no grades yet, so the average is NULL. The "

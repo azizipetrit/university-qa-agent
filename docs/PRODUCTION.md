@@ -9,7 +9,7 @@ production, and what to do first, for each of the five topics in the assignment.
 
 - Rejected SQL is repaired, with limits on attempts, queries and model calls, so a run always ends.
 - A run that fails says so, with the last error. A run that crashes still writes its trace.
-- 126 offline tests, and a 14-question live evaluation that caught a real wrong answer (see
+- 126 offline tests, and a 15-question live evaluation that caught a real wrong answer (see
   [EXAMPLES.md](EXAMPLES.md#debugging-a-wrong-answer)).
 
 **Missing**

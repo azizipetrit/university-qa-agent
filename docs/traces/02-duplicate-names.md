@@ -1,4 +1,4 @@
-# Trace 20261111-222513-aeedb2
+# Trace 20261111-225430-106cdc
 
 **Question:** What is Daniel Kim's average grade?
 
@@ -6,11 +6,11 @@
 
 **Answer:**
 
-> There are two students named Daniel Kim, told apart by email. daniel.kim@uni.example (id 4) has an average grade of 62.5. daniel.kim2@uni.example (id 6) has an average grade of about 91.33. In-progress enrollments with no grade yet were left out of each average.
+> There are two students named Daniel Kim, told apart by email. Daniel Kim (id 4, daniel.kim@uni.example) has an average grade of 62.5. Daniel Kim (id 6, daniel.kim2@uni.example) has an average grade of about 91.33. Each average uses only graded enrollments; in-progress enrollments with no grade yet are excluded.
 
 | Model | Model calls | Queries run | Tokens in / out | Duration |
 |---|---|---|---|---|
-| anthropic:claude-haiku-5-5 | 2 | 1 | 4058 / 623 | 4.4 s |
+| anthropic:claude-haiku-5-5 | 2 | 1 | 4082 / 673 | 5.3 s |
 
 ## Path
 
@@ -102,9 +102,9 @@ Notes:
 - `dialect`: "sqlite"
 
 
-### 2. generate_sql (3.3 s)
+### 2. generate_sql (3.4 s)
 
-**Model call** (SqlDecision, 1919 tokens in, 507 out, 3.3 s)
+**Model call** (SqlDecision, 1963 tokens in, 530 out, 3.4 s)
 
 *Prompt, system:*
 
@@ -117,6 +117,7 @@ Rules for the query:
 - Read the notes at the end of the schema, if there are any. They say what the data means.
 - Sample rows show how values are written. They are not the full data. Write filter values in the same format.
 - When the request names a person or thing, also select a column that identifies it uniquely, because names can repeat.
+- When the query has to find which item a figure belongs to (the latest, the highest, the first), also select what that item is, so the answer can name it.
 - Do not add LIMIT unless the request asks for a top or bottom N.
 
 Choose a status:
@@ -139,8 +140,8 @@ Question: What is Daniel Kim's average grade?
 ```json
 {
   "status": "sql",
-  "plan": "Average the non-NULL grades of Daniel Kim's enrollments, grouped by student so that people with the same name are kept apart. The email and id identify each student. AVG ignores in-progress NULL grades, and the name match is case-insensitive.",
-  "sql": "SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' COLLATE NOCASE GROUP BY s.id, s.name, s.email",
+  "plan": "Average the graded enrollments for students named Daniel Kim, grouped by student id and email because names are not unique. In-progress enrollments with NULL grades are ignored by AVG, and each student's average is shown separately.",
+  "sql": "SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' GROUP BY s.id, s.name, s.email",
   "message": null
 }
 ```
@@ -152,11 +153,11 @@ Question: What is Daniel Kim's average grade?
 - `sql`:
 
 ```sql
-SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' COLLATE NOCASE GROUP BY s.id, s.name, s.email
+SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' GROUP BY s.id, s.name, s.email
 ```
 
 - `error`: null
-- `plan`: "Average the non-NULL grades of Daniel Kim's enrollments, grouped by student so that people with the same name are kept apart. The email and id identify each student. AVG ignores in-progress NULL grades, and the name match is case-insensitive."
+- `plan`: "Average the graded enrollments for students named Daniel Kim, grouped by student id and email because names are not unique. In-progress enrollments with NULL grades are ignored by AVG, and each student's average is shown separately."
 
 
 ### 3. validate_sql (1 ms)
@@ -166,17 +167,17 @@ SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN
 - `error`: null
 
 
-### 4. execute_sql (0 ms)
+### 4. execute_sql (1 ms)
 
 **State changes:**
 
 - `queries`: one query recorded
   - reason: Answer the user's question.
-  - plan: Average the non-NULL grades of Daniel Kim's enrollments, grouped by student so that people with the same name are kept apart. The email and id identify each student. AVG ignores in-progress NULL grades, and the name match is case-insensitive.
+  - plan: Average the graded enrollments for students named Daniel Kim, grouped by student id and email because names are not unique. In-progress enrollments with NULL grades are ignored by AVG, and each student's average is shown separately.
   - result: 2 row(s)
 
 ```sql
-SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' COLLATE NOCASE GROUP BY s.id, s.name, s.email
+SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' GROUP BY s.id, s.name, s.email
 ```
 
 | id | name | email | average_grade |
@@ -188,9 +189,9 @@ SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN
 - `error`: null
 
 
-### 5. answer (1.1 s)
+### 5. answer (1.8 s)
 
-**Model call** (AnswerDecision, 2139 tokens in, 116 out, 1.1 s)
+**Model call** (AnswerDecision, 2119 tokens in, 143 out, 1.8 s)
 
 *Prompt, system:*
 
@@ -218,8 +219,8 @@ Question: What is Daniel Kim's average grade?
 
 Query 1
 Reason: Answer the user's question.
-Plan: Average the non-NULL grades of Daniel Kim's enrollments, grouped by student so that people with the same name are kept apart. The email and id identify each student. AVG ignores in-progress NULL grades, and the name match is case-insensitive.
-SQL: SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' COLLATE NOCASE GROUP BY s.id, s.name, s.email
+Plan: Average the graded enrollments for students named Daniel Kim, grouped by student id and email because names are not unique. In-progress enrollments with NULL grades are ignored by AVG, and each student's average is shown separately.
+SQL: SELECT s.id, s.name, s.email, AVG(e.grade) AS average_grade FROM students s JOIN enrollments e ON e.student_id = s.id WHERE s.name = 'Daniel Kim' GROUP BY s.id, s.name, s.email
 Result: 2 row(s), columns: id, name, email, average_grade
 [4, "Daniel Kim", "daniel.kim@uni.example", 62.5]
 [6, "Daniel Kim", "daniel.kim2@uni.example", 91.33333333333333]
@@ -234,7 +235,7 @@ Result: 2 row(s), columns: id, name, email, average_grade
 ```json
 {
   "status": "answer",
-  "answer": "There are two students named Daniel Kim, told apart by email. daniel.kim@uni.example (id 4) has an average grade of 62.5. daniel.kim2@uni.example (id 6) has an average grade of about 91.33. In-progress enrollments with no grade yet were left out of each average.",
+  "answer": "There are two students named Daniel Kim, told apart by email. Daniel Kim (id 4, daniel.kim@uni.example) has an average grade of 62.5. Daniel Kim (id 6, daniel.kim2@uni.example) has an average grade of about 91.33. Each average uses only graded enrollments; in-progress enrollments with no grade yet are excluded.",
   "reason": null
 }
 ```
@@ -245,4 +246,4 @@ Result: 2 row(s), columns: id, name, email, average_grade
 - `status`: "answered"
 - `answer`:
 
-> There are two students named Daniel Kim, told apart by email. daniel.kim@uni.example (id 4) has an average grade of 62.5. daniel.kim2@uni.example (id 6) has an average grade of about 91.33. In-progress enrollments with no grade yet were left out of each average.
+> There are two students named Daniel Kim, told apart by email. Daniel Kim (id 4, daniel.kim@uni.example) has an average grade of 62.5. Daniel Kim (id 6, daniel.kim2@uni.example) has an average grade of about 91.33. Each average uses only graded enrollments; in-progress enrollments with no grade yet are excluded.

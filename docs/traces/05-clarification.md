@@ -1,4 +1,4 @@
-# Trace 20261111-222541-a0b1a7
+# Trace 20261111-225442-918428
 
 **Question:** Who is the best?
 
@@ -6,11 +6,11 @@
 
 **Answer:**
 
-> Who do you mean by 'best': the student with the highest average grade, the teacher whose courses have the highest average grade, or something else such as the course with the highest average grade?
+> What does 'best' mean here: the student with the highest average grade, or the teacher whose courses have the highest average grade? If you mean a different measure, please say which one.
 
 | Model | Model calls | Queries run | Tokens in / out | Duration |
 |---|---|---|---|---|
-| anthropic:claude-haiku-5-5 | 1 | 0 | 1911 / 194 | 1.8 s |
+| anthropic:claude-haiku-5-5 | 1 | 0 | 1955 / 233 | 2.1 s |
 
 ## Path
 
@@ -102,9 +102,9 @@ Notes:
 - `dialect`: "sqlite"
 
 
-### 2. generate_sql (1.8 s)
+### 2. generate_sql (2.0 s)
 
-**Model call** (SqlDecision, 1911 tokens in, 194 out, 1.8 s)
+**Model call** (SqlDecision, 1955 tokens in, 233 out, 2.0 s)
 
 *Prompt, system:*
 
@@ -117,6 +117,7 @@ Rules for the query:
 - Read the notes at the end of the schema, if there are any. They say what the data means.
 - Sample rows show how values are written. They are not the full data. Write filter values in the same format.
 - When the request names a person or thing, also select a column that identifies it uniquely, because names can repeat.
+- When the query has to find which item a figure belongs to (the latest, the highest, the first), also select what that item is, so the answer can name it.
 - Do not add LIMIT unless the request asks for a top or bottom N.
 
 Choose a status:
@@ -141,7 +142,7 @@ Question: Who is the best?
   "status": "clarify",
   "plan": "",
   "sql": null,
-  "message": "Who do you mean by 'best': the student with the highest average grade, the teacher whose courses have the highest average grade, or something else such as the course with the highest average grade?"
+  "message": "What does 'best' mean here: the student with the highest average grade, or the teacher whose courses have the highest average grade? If you mean a different measure, please say which one."
 }
 ```
 
@@ -154,4 +155,4 @@ Question: Who is the best?
 - `status`: "clarify"
 - `answer`:
 
-> Who do you mean by 'best': the student with the highest average grade, the teacher whose courses have the highest average grade, or something else such as the course with the highest average grade?
+> What does 'best' mean here: the student with the highest average grade, or the teacher whose courses have the highest average grade? If you mean a different measure, please say which one.

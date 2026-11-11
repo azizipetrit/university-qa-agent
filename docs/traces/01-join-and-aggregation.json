@@ -1,6 +1,6 @@
 {
-  "run_id": "20261111-222508-4d4ca4",
-  "started_at": "2026-11-11T22:25:08",
+  "run_id": "20261111-225423-4d9ec2",
+  "started_at": "2026-11-11T22:54:23",
   "question": "Which teacher has the highest average grade across everything they have taught, and how many graded enrollments is that based on?",
   "model": "anthropic:claude-haiku-5-5",
   "steps": [
@@ -19,7 +19,7 @@
         ],
         "dialect": "sqlite"
       },
-      "duration_ms": 9
+      "duration_ms": 10
     },
     {
       "node": "generate_sql",
@@ -29,7 +29,7 @@
           "messages": [
             [
               "system",
-              "You write SQL for a question-answering system. You are given a database schema and a request.\n\nRules for the query:\n- One read-only SELECT statement in the sqlite dialect. CTEs and subqueries are allowed.\n- Use only tables and columns that appear in the schema.\n- Read the notes at the end of the schema, if there are any. They say what the data means.\n- Sample rows show how values are written. They are not the full data. Write filter values in the same format.\n- When the request names a person or thing, also select a column that identifies it uniquely, because names can repeat.\n- Do not add LIMIT unless the request asks for a top or bottom N.\n\nChoose a status:\n- \"sql\": you can write the query. Fill in `plan` and `sql`.\n- \"clarify\": the request cannot be mapped to the schema without guessing what the user means. Ask one question in `message`. Use this rarely: if a reasonable reading exists, take it and state the assumption in `plan`.\n- \"unanswerable\": the schema does not hold this information, or the request is not about this database. Explain in `message`.\n\nSchema:\nSQL dialect: sqlite\n\nTable course_offerings\n  id: INTEGER, primary key\n  course_id: INTEGER, not null, references courses.id\n  teacher_id: INTEGER, not null, references teachers.id\n  semester_id: INTEGER, not null, references semesters.id\n  Sample rows (id, course_id, teacher_id, semester_id):\n    [1, 1, 1, 1]\n    [2, 1, 2, 1]\n    [3, 4, 3, 1]\n\nTable courses\n  id: INTEGER, primary key\n  code: TEXT, not null\n  title: TEXT, not null\n  credits: INTEGER, not null\n  Sample rows (id, code, title, credits):\n    [1, 'CS101', 'Introduction to Programming', 6]\n    [2, 'CS201', 'Data Structures', 6]\n    [3, 'CS301', 'Databases', 6]\n\nTable enrollments\n  id: INTEGER, primary key\n  student_id: INTEGER, not null, references students.id\n  offering_id: INTEGER, not null, references course_offerings.id\n  grade: REAL\n  Sample rows (id, student_id, offering_id, grade):\n    [1, 1, 1, 90.0]\n    [2, 2, 1, 70.0]\n    [3, 3, 1, 80.0]\n\nTable semesters\n  id: INTEGER, primary key\n  name: TEXT, not null\n  year: INTEGER, not null\n  term: TEXT, not null\n  start_date: DATE, not null\n  Sample rows (id, name, year, term, start_date):\n    [1, 'Fall 2025', 2025, 'Fall', '2025-09-01']\n    [2, 'Spring 2026', 2026, 'Spring', '2026-02-02']\n    [3, 'Fall 2026', 2026, 'Fall', '2026-09-07']\n\nTable students\n  id: INTEGER, primary key\n  name: TEXT, not null\n  email: TEXT, not null\n  Sample rows (id, name, email):\n    [1, 'Anna Keller', 'anna.keller@uni.example']\n    [2, 'Ben Okafor', 'ben.okafor@uni.example']\n    [3, 'Clara Rossi', 'clara.rossi@uni.example']\n\nTable teachers\n  id: INTEGER, primary key\n  name: TEXT, not null\n  Sample rows (id, name):\n    [1, 'Elena Markovic']\n    [2, 'David Chen']\n    [3, 'Sara Lindqvist']\n\nNotes:\n- A course offering is one course taught by one teacher in one semester.\n- A course can have several offerings in the same semester, each with a different teacher.\n- Grades are numbers from 0 to 100. A NULL grade means the enrollment is in progress and not graded yet.\n- A student can take the same course more than once, in different semesters.\n- Student names are not unique. The email identifies a student.\n- To order semesters in time, use start_date, not name.\n- The latest semester is the one with the latest start_date, whether or not it has grades yet."
+              "You write SQL for a question-answering system. You are given a database schema and a request.\n\nRules for the query:\n- One read-only SELECT statement in the sqlite dialect. CTEs and subqueries are allowed.\n- Use only tables and columns that appear in the schema.\n- Read the notes at the end of the schema, if there are any. They say what the data means.\n- Sample rows show how values are written. They are not the full data. Write filter values in the same format.\n- When the request names a person or thing, also select a column that identifies it uniquely, because names can repeat.\n- When the query has to find which item a figure belongs to (the latest, the highest, the first), also select what that item is, so the answer can name it.\n- Do not add LIMIT unless the request asks for a top or bottom N.\n\nChoose a status:\n- \"sql\": you can write the query. Fill in `plan` and `sql`.\n- \"clarify\": the request cannot be mapped to the schema without guessing what the user means. Ask one question in `message`. Use this rarely: if a reasonable reading exists, take it and state the assumption in `plan`.\n- \"unanswerable\": the schema does not hold this information, or the request is not about this database. Explain in `message`.\n\nSchema:\nSQL dialect: sqlite\n\nTable course_offerings\n  id: INTEGER, primary key\n  course_id: INTEGER, not null, references courses.id\n  teacher_id: INTEGER, not null, references teachers.id\n  semester_id: INTEGER, not null, references semesters.id\n  Sample rows (id, course_id, teacher_id, semester_id):\n    [1, 1, 1, 1]\n    [2, 1, 2, 1]\n    [3, 4, 3, 1]\n\nTable courses\n  id: INTEGER, primary key\n  code: TEXT, not null\n  title: TEXT, not null\n  credits: INTEGER, not null\n  Sample rows (id, code, title, credits):\n    [1, 'CS101', 'Introduction to Programming', 6]\n    [2, 'CS201', 'Data Structures', 6]\n    [3, 'CS301', 'Databases', 6]\n\nTable enrollments\n  id: INTEGER, primary key\n  student_id: INTEGER, not null, references students.id\n  offering_id: INTEGER, not null, references course_offerings.id\n  grade: REAL\n  Sample rows (id, student_id, offering_id, grade):\n    [1, 1, 1, 90.0]\n    [2, 2, 1, 70.0]\n    [3, 3, 1, 80.0]\n\nTable semesters\n  id: INTEGER, primary key\n  name: TEXT, not null\n  year: INTEGER, not null\n  term: TEXT, not null\n  start_date: DATE, not null\n  Sample rows (id, name, year, term, start_date):\n    [1, 'Fall 2025', 2025, 'Fall', '2025-09-01']\n    [2, 'Spring 2026', 2026, 'Spring', '2026-02-02']\n    [3, 'Fall 2026', 2026, 'Fall', '2026-09-07']\n\nTable students\n  id: INTEGER, primary key\n  name: TEXT, not null\n  email: TEXT, not null\n  Sample rows (id, name, email):\n    [1, 'Anna Keller', 'anna.keller@uni.example']\n    [2, 'Ben Okafor', 'ben.okafor@uni.example']\n    [3, 'Clara Rossi', 'clara.rossi@uni.example']\n\nTable teachers\n  id: INTEGER, primary key\n  name: TEXT, not null\n  Sample rows (id, name):\n    [1, 'Elena Markovic']\n    [2, 'David Chen']\n    [3, 'Sara Lindqvist']\n\nNotes:\n- A course offering is one course taught by one teacher in one semester.\n- A course can have several offerings in the same semester, each with a different teacher.\n- Grades are numbers from 0 to 100. A NULL grade means the enrollment is in progress and not graded yet.\n- A student can take the same course more than once, in different semesters.\n- Student names are not unique. The email identifies a student.\n- To order semesters in time, use start_date, not name.\n- The latest semester is the one with the latest start_date, whether or not it has grades yet."
             ],
             [
               "human",
@@ -38,25 +38,25 @@
           ],
           "output": {
             "status": "sql",
-            "plan": "Join teachers to their course offerings and then to enrollments, keep only graded enrollments (grade IS NOT NULL), group by teacher id and name, compute the average grade and the count of graded enrollments, and return the top teacher by average. Assumes 'average grade across everything they taught' means the mean over all their graded enrollments across all offerings, with ungraded enrollments excluded.",
-            "sql": "SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_enrollments FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name ORDER BY avg_grade DESC LIMIT 1",
+            "plan": "Averages each teacher's grades over all their graded enrollments across every offering they taught, counting only enrollments with a non-NULL grade, then returns the teacher or teachers with the highest average along with the number of graded enrollments behind it. The average is per enrollment, not per offering, and ties are all returned rather than cut to one row.",
+            "sql": "WITH teacher_grades AS (SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_count FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name) SELECT teacher_id, teacher_name, avg_grade, graded_count FROM teacher_grades WHERE avg_grade = (SELECT MAX(avg_grade) FROM teacher_grades)",
             "message": null
           },
           "raw": [
             {
-              "signature": "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",
+              "signature": "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",
               "thinking": "",
               "type": "thinking"
             },
             {
-              "text": "{\"status\":\"sql\",\"plan\":\"Join teachers to their course offerings and then to enrollments, keep only graded enrollments (grade IS NOT NULL), group by teacher id and name, compute the average grade and the count of graded enrollments, and return the top teacher by average. Assumes 'average grade across everything they taught' means the mean over all their graded enrollments across all offerings, with ungraded enrollments excluded.\",\"sql\":\"SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_enrollments FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name ORDER BY avg_grade DESC LIMIT 1\",\"message\":null}",
+              "text": "{\"status\":\"sql\",\"plan\":\"Averages each teacher's grades over all their graded enrollments across every offering they taught, counting only enrollments with a non-NULL grade, then returns the teacher or teachers with the highest average along with the number of graded enrollments behind it. The average is per enrollment, not per offering, and ties are all returned rather than cut to one row.\",\"sql\":\"WITH teacher_grades AS (SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_count FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name) SELECT teacher_id, teacher_name, avg_grade, graded_count FROM teacher_grades WHERE avg_grade = (SELECT MAX(avg_grade) FROM teacher_grades)\",\"message\":null}",
               "type": "text"
             }
           ],
           "usage": {
-            "input_tokens": 1939,
-            "output_tokens": 723,
-            "total_tokens": 2662,
+            "input_tokens": 1983,
+            "output_tokens": 922,
+            "total_tokens": 2905,
             "input_token_details": {
               "cache_read": 0,
               "cache_creation": 0,
@@ -64,21 +64,21 @@
               "ephemeral_1h_input_tokens": 0
             },
             "output_token_details": {
-              "reasoning": 412
+              "reasoning": 571
             }
           },
           "error": null,
-          "duration_ms": 4113
+          "duration_ms": 4827
         }
       ],
       "update": {
         "llm_calls": 1,
         "attempts": 1,
-        "sql": "SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_enrollments FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name ORDER BY avg_grade DESC LIMIT 1",
+        "sql": "WITH teacher_grades AS (SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_count FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name) SELECT teacher_id, teacher_name, avg_grade, graded_count FROM teacher_grades WHERE avg_grade = (SELECT MAX(avg_grade) FROM teacher_grades)",
         "error": null,
-        "plan": "Join teachers to their course offerings and then to enrollments, keep only graded enrollments (grade IS NOT NULL), group by teacher id and name, compute the average grade and the count of graded enrollments, and return the top teacher by average. Assumes 'average grade across everything they taught' means the mean over all their graded enrollments across all offerings, with ungraded enrollments excluded."
+        "plan": "Averages each teacher's grades over all their graded enrollments across every offering they taught, counting only enrollments with a non-NULL grade, then returns the teacher or teachers with the highest average along with the number of graded enrollments behind it. The average is per enrollment, not per offering, and ties are all returned rather than cut to one row."
       },
-      "duration_ms": 4113
+      "duration_ms": 4827
     },
     {
       "node": "validate_sql",
@@ -86,7 +86,7 @@
       "update": {
         "error": null
       },
-      "duration_ms": 123
+      "duration_ms": 118
     },
     {
       "node": "execute_sql",
@@ -95,13 +95,13 @@
         "queries": [
           {
             "reason": "Answer the user's question.",
-            "plan": "Join teachers to their course offerings and then to enrollments, keep only graded enrollments (grade IS NOT NULL), group by teacher id and name, compute the average grade and the count of graded enrollments, and return the top teacher by average. Assumes 'average grade across everything they taught' means the mean over all their graded enrollments across all offerings, with ungraded enrollments excluded.",
-            "sql": "SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_enrollments FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name ORDER BY avg_grade DESC LIMIT 1",
+            "plan": "Averages each teacher's grades over all their graded enrollments across every offering they taught, counting only enrollments with a non-NULL grade, then returns the teacher or teachers with the highest average along with the number of graded enrollments behind it. The average is per enrollment, not per offering, and ties are all returned rather than cut to one row.",
+            "sql": "WITH teacher_grades AS (SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_count FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name) SELECT teacher_id, teacher_name, avg_grade, graded_count FROM teacher_grades WHERE avg_grade = (SELECT MAX(avg_grade) FROM teacher_grades)",
             "columns": [
               "teacher_id",
               "teacher_name",
               "avg_grade",
-              "graded_enrollments"
+              "graded_count"
             ],
             "rows": [
               [
@@ -131,19 +131,19 @@
             ],
             [
               "human",
-              "Question: Which teacher has the highest average grade across everything they have taught, and how many graded enrollments is that based on?\n\nQuery 1\nReason: Answer the user's question.\nPlan: Join teachers to their course offerings and then to enrollments, keep only graded enrollments (grade IS NOT NULL), group by teacher id and name, compute the average grade and the count of graded enrollments, and return the top teacher by average. Assumes 'average grade across everything they taught' means the mean over all their graded enrollments across all offerings, with ungraded enrollments excluded.\nSQL: SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_enrollments FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name ORDER BY avg_grade DESC LIMIT 1\nResult: 1 row(s), columns: teacher_id, teacher_name, avg_grade, graded_enrollments\n[1, \"Elena Markovic\", 79.0, 6]\n\n1 of 3 queries have been used. Choose a status:\n- \"answer\": the results are enough. Write the answer.\n- \"need_query\": the question cannot be answered without another query. Say in `reason` what it must find and why. Ask only when the answer truly depends on it."
+              "Question: Which teacher has the highest average grade across everything they have taught, and how many graded enrollments is that based on?\n\nQuery 1\nReason: Answer the user's question.\nPlan: Averages each teacher's grades over all their graded enrollments across every offering they taught, counting only enrollments with a non-NULL grade, then returns the teacher or teachers with the highest average along with the number of graded enrollments behind it. The average is per enrollment, not per offering, and ties are all returned rather than cut to one row.\nSQL: WITH teacher_grades AS (SELECT t.id AS teacher_id, t.name AS teacher_name, AVG(e.grade) AS avg_grade, COUNT(e.grade) AS graded_count FROM teachers t JOIN course_offerings co ON co.teacher_id = t.id JOIN enrollments e ON e.offering_id = co.id WHERE e.grade IS NOT NULL GROUP BY t.id, t.name) SELECT teacher_id, teacher_name, avg_grade, graded_count FROM teacher_grades WHERE avg_grade = (SELECT MAX(avg_grade) FROM teacher_grades)\nResult: 1 row(s), columns: teacher_id, teacher_name, avg_grade, graded_count\n[1, \"Elena Markovic\", 79.0, 6]\n\n1 of 3 queries have been used. Choose a status:\n- \"answer\": the results are enough. Write the answer.\n- \"need_query\": the question cannot be answered without another query. Say in `reason` what it must find and why. Ask only when the answer truly depends on it."
             ]
           ],
           "output": {
             "status": "answer",
-            "answer": "Elena Markovic (teacher id 1) has the highest average grade across everything they have taught: 79.0, based on 6 graded enrollments. This averages all graded enrollments across all their course offerings, and ungraded (in-progress) enrollments were excluded.",
+            "answer": "Elena Markovic has the highest average grade across everything they have taught, at 79.0. This average is based on 6 graded enrollments. It is calculated per enrollment across all offerings they taught, counting only enrollments with a grade (in-progress enrollments with NULL grades were excluded).",
             "reason": null
           },
-          "raw": "{\"status\":\"answer\",\"answer\":\"Elena Markovic (teacher id 1) has the highest average grade across everything they have taught: 79.0, based on 6 graded enrollments. This averages all graded enrollments across all their course offerings, and ungraded (in-progress) enrollments were excluded.\",\"reason\":null}",
+          "raw": "{\"status\":\"answer\",\"answer\":\"Elena Markovic has the highest average grade across everything they have taught, at 79.0. This average is based on 6 graded enrollments. It is calculated per enrollment across all offerings they taught, counting only enrollments with a grade (in-progress enrollments with NULL grades were excluded).\",\"reason\":null}",
           "usage": {
-            "input_tokens": 2235,
-            "output_tokens": 105,
-            "total_tokens": 2340,
+            "input_tokens": 2272,
+            "output_tokens": 113,
+            "total_tokens": 2385,
             "input_token_details": {
               "cache_read": 0,
               "cache_creation": 0,
@@ -155,19 +155,19 @@
             }
           },
           "error": null,
-          "duration_ms": 1145
+          "duration_ms": 1501
         }
       ],
       "update": {
         "llm_calls": 2,
         "status": "answered",
-        "answer": "Elena Markovic (teacher id 1) has the highest average grade across everything they have taught: 79.0, based on 6 graded enrollments. This averages all graded enrollments across all their course offerings, and ungraded (in-progress) enrollments were excluded."
+        "answer": "Elena Markovic has the highest average grade across everything they have taught, at 79.0. This average is based on 6 graded enrollments. It is calculated per enrollment across all offerings they taught, counting only enrollments with a grade (in-progress enrollments with NULL grades were excluded)."
       },
-      "duration_ms": 1145
+      "duration_ms": 1501
     }
   ],
   "status": "answered",
-  "answer": "Elena Markovic (teacher id 1) has the highest average grade across everything they have taught: 79.0, based on 6 graded enrollments. This averages all graded enrollments across all their course offerings, and ungraded (in-progress) enrollments were excluded.",
+  "answer": "Elena Markovic has the highest average grade across everything they have taught, at 79.0. This average is based on 6 graded enrollments. It is calculated per enrollment across all offerings they taught, counting only enrollments with a grade (in-progress enrollments with NULL grades were excluded).",
   "error": null,
-  "duration_ms": 5402
+  "duration_ms": 6467
 }

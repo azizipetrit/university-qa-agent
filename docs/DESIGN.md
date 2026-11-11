@@ -157,6 +157,16 @@ Most questions need one query, because SQL can already express several steps wit
 subqueries. The loop is for questions where the second query depends on what the first one
 returned. Each query is stored with the reason it was run, and both appear in the trace.
 
+How often the real model uses it: rarely. Six compound questions were tried on default settings
+with `anthropic:claude-haiku-5-5`. Five were answered correctly with a single query, including
+"which student improved most on a retake, and what are they taking now". One, an open-ended
+"is anything unusual about the grades, then dig into what stands out", used a second query on its
+own. That run is example 10 in [EXAMPLES.md](EXAMPLES.md) and is now a golden question. So the
+loop is a safety net for open questions and distrusted empty results, not the normal path.
+
+Even that question does not always use it. Across four runs of it, two used a second query and
+two answered with one. The golden question checks the values fetched, not the number of queries.
+
 ### Empty and NULL results
 
 There is no separate review step. `answer` runs after every query and its prompt states plainly
@@ -220,7 +230,7 @@ Two kinds of test answer two different questions.
   stand-in (`tests/fakes.py`) that returns prepared replies in order and records every prompt. The
   database, the guard, the graph and the tracer are all real. These tests are exact and free, and
   they cannot say anything about the quality of a real model's SQL.
-- **Does the real model answer correctly?** 14 golden questions in
+- **Does the real model answer correctly?** 15 golden questions in
   `university/golden_questions.json`, run with `uv run pytest -m live`. Each lists the values a
   correct run must have fetched (for example `73.75`), and the expected status. Whole result sets
   are not compared, because a correct query that selects one extra column would fail.
@@ -234,6 +244,7 @@ The live evaluation is not run by default, because it needs a key and costs mone
 | `anthropic:claude-opus-5-5` | Before the "latest semester" line | 13 of 14 | 1 |
 | `anthropic:claude-opus-5-5` | Current | 14 of 14 | 1 |
 | `anthropic:claude-haiku-5-5` (the default) | Current | 14 of 14 | 3 |
+| `anthropic:claude-haiku-5-5` (the default) | Current, with the open-ended question added | 15 of 15 | 1 |
 
 - The one Opus failure was a real misreading of "latest semester". It is written up in
   [EXAMPLES.md](EXAMPLES.md#debugging-a-wrong-answer), and fixed by one line in the schema notes.
@@ -254,6 +265,14 @@ The live evaluation is not run by default, because it needs a key and costs mone
 - **The guard checks tables, not columns or functions.** A wrong column costs one repair attempt.
 - **The answer is not verified against the rows.** The answer prompt forbids invented values, and
   the trace lets a person check, but no code does.
+- **A NULL from an aggregate over no rows looks like missing data.** `AVG` over zero matching rows
+  returns one row holding NULL, not zero rows. The answer step can take that for "not graded yet"
+  when the real cause is a filter that matched nothing. Example 3 in
+  [EXAMPLES.md](EXAMPLES.md) shows it: the answer names both possible causes but does not run a
+  second query to tell them apart.
+- **The open-ended golden question is loosely checked.** It passes if the run fetched the total
+  number of ungraded enrollments or the number in the latest semester. A different but reasonable
+  exploration could fail it.
 - **No conversation memory.** Each question stands alone.
 - **The live evaluation is small** and tied to the demo database. It shows the method more than it
   measures quality.
