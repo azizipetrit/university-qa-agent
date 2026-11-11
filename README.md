@@ -128,6 +128,10 @@ uv run pytest -m live     # 14 real questions against the real model (costs a fe
 uv run ruff check .
 ```
 
+GitHub Actions runs the lint and the offline tests on every pull request and on `main`
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). The live evaluation is not run there,
+because it needs an API key and costs money.
+
 The offline tests use a scripted stand-in for the model (`tests/fakes.py`), so they test the graph,
 the guard, the database layer and the tracer exactly, and say nothing about how well a real model
 writes SQL. The live evaluation covers that: each question in

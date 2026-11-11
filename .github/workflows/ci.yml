@@ -1,0 +1,30 @@
+name: CI
+
+# Lint and the offline tests. No API key is needed: the model is replaced by a
+# scripted stand-in, and the live evaluation (pytest -m live) is not run here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Offline tests
+        run: uv run pytest
